@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from openpyxl.utils import get_column_letter
 import pandas as pd
 
 from sars2_pipeline.config import (
@@ -11,6 +12,18 @@ from sars2_pipeline.config import (
     QC_SUMMARY_SHEET,
     SEQUENCES_SHEET,
 )
+
+
+def adjust_column_widths(worksheet, max_width=60):
+    for column_cells in worksheet.columns:
+        max_length = 0
+        for cell in column_cells:
+            if cell.value is None:
+                continue
+            max_length = max(max_length, len(str(cell.value)))
+
+        column_letter = get_column_letter(column_cells[0].column)
+        worksheet.column_dimensions[column_letter].width = min(max_length + 2, max_width)
 
 
 def write_excel(
@@ -40,3 +53,6 @@ def write_excel(
         qc_summary_df.to_excel(writer, sheet_name=QC_SUMMARY_SHEET, index=False)
         if nextclade_df is not None:
             nextclade_df.to_excel(writer, sheet_name=NEXTCLADE_SHEET, index=False)
+
+        for worksheet in writer.book.worksheets:
+            adjust_column_widths(worksheet)
