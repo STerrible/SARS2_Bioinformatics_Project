@@ -6,6 +6,7 @@
 - извлекает метаданные, CDS-аннотации и последовательности;
 - запускает локальный Nextclade для FASTA-файла `data/raw/sequence.fasta`;
 - сохраняет raw-результат Nextclade в `results/nextclade.tsv`;
+- сохраняет выравненные Nextclade-последовательности в `results/aligned.fasta`;
 - добавляет в итоговый Excel raw-лист Nextclade и удобные summary-листы.
 
 Проект не скачивает данные из NCBI, не запускает Pangolin, не строит филогенетику и не делает собственный pairwise alignment. Мутации и QC для анализа берутся из Nextclade.
@@ -24,6 +25,7 @@ SARS2_Bioinformatics_Project/
   results/
     genbank_table.xlsx
     nextclade.tsv
+    aligned.fasta
   src/
     sars2_pipeline/
       cli.py
@@ -83,6 +85,7 @@ python main.py
 
 ```text
 results/nextclade.tsv
+results/aligned.fasta
 results/genbank_table.xlsx
 ```
 
@@ -98,6 +101,7 @@ python main.py `
   --fasta data/raw/sequence.fasta `
   --output results/genbank_table.xlsx `
   --nextclade-output results/nextclade.tsv `
+  --nextclade-aligned-fasta results/aligned.fasta `
   --nextclade-exe C:\Games\Nextclade\nextclade.exe `
   --nextclade-dataset C:\Games\Nextclade\sars-cov-2
 ```
@@ -108,6 +112,7 @@ python main.py `
 - `--fasta`: FASTA-файл для Nextclade.
 - `--output`: итоговый Excel-файл.
 - `--nextclade-output`: TSV-файл raw-результата Nextclade.
+- `--nextclade-aligned-fasta`: FASTA-файл с выравненными Nextclade-последовательностями.
 - `--nextclade-exe`: путь к `nextclade.exe`.
 - `--nextclade-dataset`: путь к локальному датасету Nextclade.
 
@@ -165,6 +170,9 @@ python main.py `
 `Amino_Acid_Changes_By_Gene`
 : Частоты аминокислотных замен отдельно по каждому gene. Лист помогает увидеть, какие аминокислоты чаще затрагиваются в конкретных белках.
 
+`aligned_fasta`
+: Выравненные последовательности из FASTA-файла, созданного Nextclade. Лист содержит `seq_id`, `description` и `aligned_sequence`; это наглядное представление результата Nextclade, а не собственное pairwise alignment в коде проекта.
+
 `Run_Metadata`
 : Техническая информация о запуске: версия Nextclade, пути к входным и выходным файлам, путь к датасету, время запуска и размеры обработанных таблиц.
 
@@ -195,6 +203,7 @@ Country_Summary
 Country_Mutations
 Amino_Acid_Changes
 Amino_Acid_Changes_By_Gene
+aligned_fasta
 Run_Metadata
 ```
 

@@ -4,13 +4,14 @@ from pathlib import Path
 
 from sars2_pipeline.config import (
     DEFAULT_INPUT_FASTA,
+    DEFAULT_NEXTCLADE_ALIGNED_FASTA,
     DEFAULT_NEXTCLADE_DATASET,
     DEFAULT_NEXTCLADE_EXE,
     DEFAULT_NEXTCLADE_TSV,
 )
 from sars2_pipeline.excel_export import write_excel
 from sars2_pipeline.genbank_parser import extract_genbank_tables, read_genbank_records
-from sars2_pipeline.nextclade import get_nextclade_version, read_nextclade_tsv, run_nextclade
+from sars2_pipeline.nextclade import get_nextclade_version, read_aligned_fasta, read_nextclade_tsv, run_nextclade
 from sars2_pipeline.nextclade_summary import (
     build_amino_acid_changes,
     build_amino_acid_changes_by_gene,
@@ -33,6 +34,7 @@ def parse_genbank_to_excel(
     output_xlsx,
     input_fasta=DEFAULT_INPUT_FASTA,
     nextclade_output_tsv=DEFAULT_NEXTCLADE_TSV,
+    nextclade_aligned_fasta=DEFAULT_NEXTCLADE_ALIGNED_FASTA,
     nextclade_exe=DEFAULT_NEXTCLADE_EXE,
     nextclade_dataset=DEFAULT_NEXTCLADE_DATASET,
 ):
@@ -48,8 +50,10 @@ def parse_genbank_to_excel(
         nextclade_output_tsv,
         nextclade_exe,
         nextclade_dataset,
+        nextclade_aligned_fasta,
     )
     nextclade_df = read_nextclade_tsv(nextclade_output_tsv)
+    aligned_fasta_df = read_aligned_fasta(nextclade_aligned_fasta)
     nextclade_mutations_df = build_nextclade_mutations(nextclade_df)
     nextclade_summary_df = build_nextclade_summary(nextclade_df)
     enriched_nextclade_df = enrich_nextclade_with_metadata(nextclade_df, metadata_rows)
@@ -70,6 +74,7 @@ def parse_genbank_to_excel(
         input_fasta,
         output_xlsx,
         nextclade_output_tsv,
+        nextclade_aligned_fasta,
         nextclade_exe,
         nextclade_dataset,
         get_nextclade_version(nextclade_exe),
@@ -92,6 +97,7 @@ def parse_genbank_to_excel(
         country_mutations_df,
         amino_acid_changes_df,
         amino_acid_changes_by_gene_df,
+        aligned_fasta_df,
         run_metadata_df,
     )
 
@@ -99,6 +105,7 @@ def parse_genbank_to_excel(
     print(f"Records processed: {len(records)}")
     print(f"CDS processed: {len(cds_rows)}")
     print(f"Nextclade results: {nextclade_output_tsv}")
+    print(f"Aligned FASTA: {nextclade_aligned_fasta}")
 
 
 def parse_args():
@@ -140,6 +147,12 @@ def parse_args():
         default=project_dir / DEFAULT_NEXTCLADE_TSV,
         help="Output TSV file for Nextclade results.",
     )
+    parser.add_argument(
+        "--nextclade-aligned-fasta",
+        type=Path,
+        default=project_dir / DEFAULT_NEXTCLADE_ALIGNED_FASTA,
+        help="Output aligned FASTA file from Nextclade.",
+    )
     return parser.parse_args()
 
 
@@ -151,6 +164,7 @@ def main():
             args.output,
             args.fasta,
             args.nextclade_output,
+            args.nextclade_aligned_fasta,
             args.nextclade_exe,
             args.nextclade_dataset,
         )

@@ -4,6 +4,7 @@ from openpyxl.utils import get_column_letter
 import pandas as pd
 
 from sars2_pipeline.config import (
+    ALIGNED_FASTA_SHEET,
     CDS_SHEET,
     AMINO_ACID_CHANGES_SHEET,
     AMINO_ACID_CHANGES_BY_GENE_SHEET,
@@ -50,6 +51,7 @@ def write_excel(
     country_mutations_df=None,
     amino_acid_changes_df=None,
     amino_acid_changes_by_gene_df=None,
+    aligned_fasta_df=None,
     run_metadata_df=None,
 ):
     output_xlsx = Path(output_xlsx)
@@ -86,6 +88,8 @@ def write_excel(
             amino_acid_changes_df.to_excel(writer, sheet_name=AMINO_ACID_CHANGES_SHEET, index=False)
         if amino_acid_changes_by_gene_df is not None:
             amino_acid_changes_by_gene_df.to_excel(writer, sheet_name=AMINO_ACID_CHANGES_BY_GENE_SHEET, index=False)
+        if aligned_fasta_df is not None:
+            aligned_fasta_df.to_excel(writer, sheet_name=ALIGNED_FASTA_SHEET, index=False)
         if run_metadata_df is not None:
             run_metadata_df.to_excel(writer, sheet_name=RUN_METADATA_SHEET, index=False)
 
