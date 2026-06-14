@@ -45,4 +45,4 @@ def read_nextclade_tsv(output_tsv):
     output_tsv = Path(output_tsv)
     if not output_tsv.exists():
         raise ValueError(f"Nextclade TSV file was not found: {output_tsv}")
-    return pd.read_csv(output_tsv, sep="\t")
+    return pd.read_csv(output_tsv, sep="\t", keep_default_na=False)
