@@ -6,11 +6,9 @@ from sars2_pipeline.config import (
     DEFAULT_NEXTCLADE_DATASET,
     DEFAULT_NEXTCLADE_EXE,
     DEFAULT_NEXTCLADE_TSV,
-    DEFAULT_REFERENCE_ACCESSION,
 )
 from sars2_pipeline.excel_export import write_excel
 from sars2_pipeline.genbank_parser import extract_genbank_tables, read_genbank_records
-from sars2_pipeline.mutation_analysis import build_mutation_rows, require_reference_record
 from sars2_pipeline.nextclade import read_nextclade_tsv, run_nextclade
 from sars2_pipeline.qc import build_qc_summary
 
@@ -18,7 +16,6 @@ from sars2_pipeline.qc import build_qc_summary
 def parse_genbank_to_excel(
     input_gb,
     output_xlsx,
-    reference_accession=DEFAULT_REFERENCE_ACCESSION,
     input_fasta=DEFAULT_INPUT_FASTA,
     nextclade_output_tsv=DEFAULT_NEXTCLADE_TSV,
     nextclade_exe=DEFAULT_NEXTCLADE_EXE,
@@ -28,23 +25,8 @@ def parse_genbank_to_excel(
     output_xlsx = Path(output_xlsx)
 
     records = read_genbank_records(input_gb)
-    reference_record = require_reference_record(records, reference_accession, input_gb)
     metadata_rows, cds_rows, sequence_rows = extract_genbank_tables(records)
-
-    mutation_rows, length_mismatch_records, not_comparable_records, mutation_count = build_mutation_rows(
-        records,
-        reference_record,
-        reference_accession,
-    )
-    qc_summary_rows = build_qc_summary(
-        records,
-        cds_rows,
-        reference_record,
-        reference_accession,
-        length_mismatch_records,
-        not_comparable_records,
-        mutation_count,
-    )
+    qc_summary_rows = build_qc_summary(records, cds_rows)
 
     nextclade_output_tsv = run_nextclade(
         input_fasta,
@@ -59,7 +41,6 @@ def parse_genbank_to_excel(
         metadata_rows,
         cds_rows,
         sequence_rows,
-        mutation_rows,
         qc_summary_rows,
         nextclade_df,
     )
@@ -67,8 +48,6 @@ def parse_genbank_to_excel(
     print(f"Done: {output_xlsx}")
     print(f"Records processed: {len(records)}")
     print(f"CDS processed: {len(cds_rows)}")
-    print(f"Mutations found: {mutation_count}")
-    print(f"Records requiring alignment: {len(not_comparable_records)}")
     print(f"Nextclade results: {nextclade_output_tsv}")
 
 
@@ -86,11 +65,6 @@ def parse_args():
         type=Path,
         default=project_dir / "results" / "genbank_table.xlsx",
         help="Output Excel workbook.",
-    )
-    parser.add_argument(
-        "--reference-accession",
-        default=DEFAULT_REFERENCE_ACCESSION,
-        help="Reference accession for nucleotide mutation analysis.",
     )
     parser.add_argument(
         "--fasta",
@@ -125,7 +99,6 @@ def main():
         parse_genbank_to_excel(
             args.input,
             args.output,
-            args.reference_accession,
             args.fasta,
             args.nextclade_output,
             args.nextclade_exe,
