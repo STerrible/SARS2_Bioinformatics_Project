@@ -1,6 +1,6 @@
 # SARS-CoV-2 Bioinformatics Project
 
-Проект автоматически собирает Excel-отчет по локальным данным SARS-CoV-2:
+Возможности проекта: 
 
 - читает GenBank-файл `data/raw/sequence.gb`;
 - извлекает метаданные, CDS-аннотации и последовательности;
@@ -9,33 +9,9 @@
 - сохраняет выравненные Nextclade-последовательности в `results/aligned.fasta`;
 - добавляет в итоговый Excel raw-лист Nextclade и удобные summary-листы.
 
-Проект не скачивает данные из NCBI, не запускает Pangolin, не строит филогенетику и не делает собственный pairwise alignment. Мутации и QC для анализа берутся из Nextclade.
+В ближайшее время планируется добавление филогенетики и улучшенных автоматических отчетных файлов, которые создаются из Excel-файла.
 
 ## Структура проекта
-
-```text
-SARS2_Bioinformatics_Project/
-  main.py
-  README.md
-  data/
-    raw/
-      sequence.gb
-      sequence.fasta
-      accessions.txt
-  results/
-    genbank_table.xlsx
-    nextclade.tsv
-    aligned.fasta
-  src/
-    sars2_pipeline/
-      cli.py
-      config.py
-      excel_export.py
-      genbank_parser.py
-      nextclade.py
-      nextclade_summary.py
-      qc.py
-```
 
 Основная точка запуска: `main.py`.
 
@@ -56,6 +32,8 @@ C:\Games\Nextclade\nextclade.exe
 C:\Games\Nextclade\sars-cov-2
 ```
 
+(Если я не найду способ более общего оформления в коде, я изменю директории в ближайшее время)
+
 В датасете Nextclade используется референс `MN908947 (Wuhan-Hu-1/2019)`. Его последовательность совпадает с `NC_045512.2` из локального GenBank-файла.
 
 ## Входные файлы
@@ -71,7 +49,7 @@ data/raw/sequence.fasta
 
 `sequence.fasta` нужен для запуска Nextclade.
 
-Файлы должны уже лежать в проекте. Автоматической загрузки из NCBI в pipeline нет.
+Файлы должны уже лежать в проекте. Автоматической загрузки из NCBI в pipeline нет. Возможно, добавлю в будущем.
 
 ## Запуск
 
