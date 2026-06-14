@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from datetime import datetime
 from pathlib import Path
 
 from sars2_pipeline.config import (
@@ -9,8 +10,18 @@ from sars2_pipeline.config import (
 )
 from sars2_pipeline.excel_export import write_excel
 from sars2_pipeline.genbank_parser import extract_genbank_tables, read_genbank_records
-from sars2_pipeline.nextclade import read_nextclade_tsv, run_nextclade
-from sars2_pipeline.nextclade_summary import build_nextclade_summary_tables
+from sars2_pipeline.nextclade import get_nextclade_version, read_nextclade_tsv, run_nextclade
+from sars2_pipeline.nextclade_summary import (
+    build_amino_acid_changes,
+    build_country_mutations,
+    build_country_summary,
+    build_nextclade_gene_summary,
+    build_nextclade_summary_tables,
+    build_nextclade_top_mutations,
+    build_run_metadata,
+    enrich_mutations_with_metadata,
+    enrich_nextclade_with_metadata,
+)
 from sars2_pipeline.qc import build_qc_summary
 
 
@@ -39,6 +50,26 @@ def parse_genbank_to_excel(
     nextclade_qc_df, nextclade_mutations_df, nextclade_summary_df = build_nextclade_summary_tables(
         nextclade_df,
     )
+    enriched_nextclade_df = enrich_nextclade_with_metadata(nextclade_df, metadata_rows)
+    enriched_mutations_df = enrich_mutations_with_metadata(nextclade_mutations_df, metadata_rows)
+    nextclade_gene_summary_df = build_nextclade_gene_summary(enriched_mutations_df)
+    nextclade_top_mutations_df = build_nextclade_top_mutations(enriched_mutations_df, len(nextclade_df))
+    country_summary_df = build_country_summary(enriched_nextclade_df)
+    country_mutations_df = build_country_mutations(enriched_mutations_df, enriched_nextclade_df)
+    amino_acid_changes_df = build_amino_acid_changes(enriched_mutations_df)
+    run_metadata_df = build_run_metadata(
+        nextclade_df,
+        metadata_rows,
+        cds_rows,
+        input_gb,
+        input_fasta,
+        output_xlsx,
+        nextclade_output_tsv,
+        nextclade_exe,
+        nextclade_dataset,
+        get_nextclade_version(nextclade_exe),
+        datetime.now().astimezone().isoformat(timespec="seconds"),
+    )
 
     write_excel(
         output_xlsx,
@@ -50,6 +81,12 @@ def parse_genbank_to_excel(
         nextclade_qc_df,
         nextclade_mutations_df,
         nextclade_summary_df,
+        nextclade_gene_summary_df,
+        nextclade_top_mutations_df,
+        country_summary_df,
+        country_mutations_df,
+        amino_acid_changes_df,
+        run_metadata_df,
     )
 
     print(f"Done: {output_xlsx}")
