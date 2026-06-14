@@ -28,14 +28,15 @@ def fmt_number(value, digits=2):
     return f"{float(value):.{digits}f}"
 
 
-def markdown_table(df, columns=None, limit=10):
+def markdown_table(df, columns=None, limit=None):
     if df.empty:
-        return "_Нет строк для отображения._"
+        return ""
 
     table = df.copy()
     if columns is not None:
         table = table.loc[:, [column for column in columns if column in table.columns]]
-    table = table.head(limit)
+    if limit is not None:
+        table = table.head(limit)
 
     headers = list(table.columns)
     lines = [
@@ -47,25 +48,10 @@ def markdown_table(df, columns=None, limit=10):
     return "\n".join(lines)
 
 
-def shortest_longest(metadata):
-    columns = ["accession_version", "country", "collection_date", "length"]
-    sorted_metadata = metadata.sort_values("length")
-    shortest = sorted_metadata.iloc[[0]].loc[:, columns]
-    longest = sorted_metadata.iloc[[-1]].loc[:, columns]
-    return shortest, longest
-
-
-def nucleotide_averages(metadata):
-    rows = []
-    for base in ["A", "G", "C", "T"]:
-        count_column = f"{base}_count"
-        pct_column = f"{base}_%"
-        rows.append({
-            "base": base,
-            "mean_count": round(metadata[count_column].mean(), 2),
-            "mean_percent": round(metadata[pct_column].mean(), 2),
-        })
-    return pd.DataFrame(rows)
+def country_distribution(metadata):
+    country_counts = metadata["country"].replace("", "unknown").value_counts().reset_index()
+    country_counts.columns = ["country", "sample_count"]
+    return country_counts
 
 
 def clade_distribution(nextclade_summary):
@@ -75,17 +61,6 @@ def clade_distribution(nextclade_summary):
         .rename(columns={"value": "clade"})
         .sort_values(["count", "clade"], ascending=[False, True])
     )
-
-
-def country_distribution(metadata):
-    country_counts = (
-        metadata["country"]
-        .replace("", "unknown")
-        .value_counts()
-        .reset_index()
-    )
-    country_counts.columns = ["country", "sample_count"]
-    return country_counts
 
 
 def top_genes(gene_summary):
@@ -104,18 +79,122 @@ def top_amino_acid_substitutions(top_mutations):
     )
 
 
-def d614g_status(mutations):
+def nucleotide_averages(metadata):
+    rows = []
+    for base in ["A", "G", "C", "T"]:
+        rows.append({
+            "base": base,
+            "mean_count": round(metadata[f"{base}_count"].mean(), 2),
+            "mean_percent": round(metadata[f"{base}_%"].mean(), 2),
+        })
+    return pd.DataFrame(rows)
+
+
+def genome_length_summary(metadata):
+    shortest = metadata.loc[metadata["length"].idxmin()]
+    longest = metadata.loc[metadata["length"].idxmax()]
+    return pd.DataFrame([
+        {
+            "metric": "sample_count",
+            "value": len(metadata),
+            "accession_version": "",
+            "country": "",
+            "collection_date": "",
+        },
+        {
+            "metric": "mean_length",
+            "value": fmt_number(metadata["length"].mean()),
+            "accession_version": "",
+            "country": "",
+            "collection_date": "",
+        },
+        {
+            "metric": "shortest_genome",
+            "value": int(shortest["length"]),
+            "accession_version": shortest["accession_version"],
+            "country": shortest["country"],
+            "collection_date": shortest["collection_date"],
+        },
+        {
+            "metric": "longest_genome",
+            "value": int(longest["length"]),
+            "accession_version": longest["accession_version"],
+            "country": longest["country"],
+            "collection_date": longest["collection_date"],
+        },
+    ])
+
+
+def d614g_table(mutations):
     rows = mutations[
         (mutations["gene"] == "S")
         & (mutations["mutation"] == "D614G")
         & (mutations["mutation_type"] == "amino_acid_substitution")
     ]
     if rows.empty:
-        return "Не обнаружена в текущей выборке."
+        return pd.DataFrame([{
+            "mutation": "S:D614G",
+            "sample_count": 0,
+            "countries": "",
+        }])
 
-    sample_count = rows["accession_version"].nunique()
-    countries = ", ".join(sorted(country for country in rows["country"].replace("", "unknown").unique()))
-    return f"Обнаружена: {sample_count} образцов; страны: {countries}."
+    return pd.DataFrame([{
+        "mutation": "S:D614G",
+        "sample_count": rows["accession_version"].nunique(),
+        "countries": ", ".join(sorted(rows["country"].replace("", "unknown").unique())),
+    }])
+
+
+def diploma_comparison(metadata, gene_summary, amino_acid_changes):
+    top_gene = top_genes(gene_summary).iloc[0]
+    aa_rows = amino_acid_changes[amino_acid_changes["role"] == "reference_amino_acid"].copy()
+
+    def aa_count(name):
+        rows = aa_rows[aa_rows["amino_acid_name_ru"].str.lower() == name]
+        if rows.empty:
+            return 0
+        return int(rows.iloc[0]["mutation_observations"])
+
+    return pd.DataFrame([
+        {
+            "metric": "sample_count",
+            "diploma_value": "4000; phylogeny: 8000",
+            "pipeline_value": len(metadata),
+        },
+        {
+            "metric": "mean_genome_length",
+            "diploma_value": "29870",
+            "pipeline_value": fmt_number(metadata["length"].mean()),
+        },
+        {
+            "metric": "top_variable_gene",
+            "diploma_value": "S",
+            "pipeline_value": f"{top_gene['gene']} ({top_gene['mutation_observations']})",
+        },
+        {
+            "metric": "leucine_observations",
+            "diploma_value": "frequent",
+            "pipeline_value": aa_count("лейцин"),
+        },
+        {
+            "metric": "threonine_observations",
+            "diploma_value": "frequent",
+            "pipeline_value": aa_count("треонин"),
+        },
+        {
+            "metric": "histidine_observations",
+            "diploma_value": "frequent",
+            "pipeline_value": aa_count("гистидин"),
+        },
+        {
+            "metric": "diploma_variable_countries_present",
+            "diploma_value": "Egypt; Netherlands; USA",
+            "pipeline_value": "; ".join(
+                f"{country}:{'yes' if country.lower() in set(metadata['country'].str.lower()) else 'no'}"
+                for country in ["Egypt", "Netherlands", "USA"]
+            ),
+        },
+    ])
 
 
 def build_report(excel_path):
@@ -124,74 +203,52 @@ def build_report(excel_path):
     gene_summary = read_sheet(excel_path, "Nextclade_Gene_Summary")
     top_mutations = read_sheet(excel_path, "Nextclade_Top_Mutations")
     mutations = read_sheet(excel_path, "Nextclade_Mutations")
+    amino_acid_changes = read_sheet(excel_path, "Amino_Acid_Changes")
 
-    sample_count = len(metadata)
-    mean_length = metadata["length"].mean()
-    shortest, longest = shortest_longest(metadata)
-    nucleotide_means = nucleotide_averages(metadata)
-    clades = clade_distribution(nextclade_summary)
-    countries = country_distribution(metadata)
-    genes = top_genes(gene_summary)
-    aa_substitutions = top_amino_acid_substitutions(top_mutations)
-
-    lines = [
-        "# Краткий отчет по анализу SARS-CoV-2",
+    sections = [
+        "# Автоматический сравнительный отчет",
         "",
-        f"Сгенерировано: `{datetime.now().astimezone().isoformat(timespec='seconds')}`.",
-        f"Источник: `{excel_path}`.",
+        f"`generated_at`: `{datetime.now().astimezone().isoformat(timespec='seconds')}`",
+        f"`source_excel`: `{excel_path}`",
         "",
-        "## Выборка",
+        "## Diploma_Comparison",
         "",
-        f"- Образцов в текущем анализе: **{sample_count}**.",
-        "- В дипломной работе для сравнения фигурируют 4000 нуклеотидных последовательностей и 8000 последовательностей в филогенетическом блоке.",
-        f"- Средняя длина генома в текущей выборке: **{fmt_number(mean_length)} н.**",
-        "- Средняя длина генома в выводах диплома: **29870 н.**",
+        markdown_table(diploma_comparison(metadata, gene_summary, amino_acid_changes)),
         "",
-        "Самый короткий геном:",
+        "## Genome_Length_Summary",
         "",
-        markdown_table(shortest),
+        markdown_table(genome_length_summary(metadata)),
         "",
-        "Самый длинный геном:",
+        "## Mean_Nucleotide_Composition",
         "",
-        markdown_table(longest),
+        markdown_table(nucleotide_averages(metadata)),
         "",
-        "## Средний состав A/G/C/T",
+        "## Clade_Distribution",
         "",
-        markdown_table(nucleotide_means),
+        markdown_table(clade_distribution(nextclade_summary)),
         "",
-        "## Clade в текущей выборке",
+        "## Country_Distribution",
         "",
-        markdown_table(clades),
+        markdown_table(country_distribution(metadata)),
         "",
-        "## Страны в текущей выборке",
+        "## Top_Genes_By_Changes",
         "",
-        markdown_table(countries, limit=20),
+        markdown_table(top_genes(gene_summary), limit=10),
         "",
-        "## Топ генов по числу изменений",
+        "## Top_Amino_Acid_Substitutions",
         "",
-        markdown_table(genes, limit=10),
+        markdown_table(top_amino_acid_substitutions(top_mutations), limit=10),
         "",
-        "## Топ аминокислотных замен",
+        "## D614G",
         "",
-        markdown_table(aa_substitutions, limit=10),
-        "",
-        "## Проверка D614G",
-        "",
-        d614g_status(mutations),
-        "",
-        "## Короткое сравнение с дипломом",
-        "",
-        "- В дипломе наиболее вариабельным указан ген **S**.",
-        f"- В текущей выборке по листу `Nextclade_Gene_Summary` на первом месте: **{md(genes.iloc[0]['gene'])}**.",
-        "- Это не противоречие само по себе: текущая выборка намного меньше и имеет другой состав.",
-        "- Сильная сторона текущего проекта: отчет обновляется автоматически после пересборки Excel.",
+        markdown_table(d614g_table(mutations)),
     ]
 
-    return "\n".join(lines) + "\n"
+    return "\n".join(sections) + "\n"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Generate a concise Markdown report from the pipeline Excel workbook.")
+    parser = argparse.ArgumentParser(description="Generate an automatic Markdown comparison report.")
     parser.add_argument("--input", type=Path, default=DEFAULT_EXCEL, help="Input Excel workbook generated by the pipeline.")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Output Markdown report path.")
     return parser.parse_args()

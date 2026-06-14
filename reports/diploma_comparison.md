@@ -1,28 +1,30 @@
-# Краткий отчет по анализу SARS-CoV-2
+# Автоматический сравнительный отчет
 
-Сгенерировано: `2026-06-15T02:12:22+05:00`.
-Источник: `C:\Users\STerrible\PycharmProjects\SARS2_Bioinformatics_Project\results\genbank_table.xlsx`.
+`generated_at`: `2026-06-15T02:23:04+05:00`
+`source_excel`: `C:\Users\STerrible\PycharmProjects\SARS2_Bioinformatics_Project\results\genbank_table.xlsx`
 
-## Выборка
+## Diploma_Comparison
 
-- Образцов в текущем анализе: **35**.
-- В дипломной работе для сравнения фигурируют 4000 нуклеотидных последовательностей и 8000 последовательностей в филогенетическом блоке.
-- Средняя длина генома в текущей выборке: **29869.80 н.**
-- Средняя длина генома в выводах диплома: **29870 н.**
+| metric | diploma_value | pipeline_value |
+| --- | --- | --- |
+| sample_count | 4000; phylogeny: 8000 | 35 |
+| mean_genome_length | 29870 | 29869.80 |
+| top_variable_gene | S | ORF1a (29) |
+| leucine_observations | frequent | 21 |
+| threonine_observations | frequent | 4 |
+| histidine_observations | frequent | 2 |
+| diploma_variable_countries_present | Egypt; Netherlands; USA | Egypt:no; Netherlands:no; USA:yes |
 
-Самый короткий геном:
+## Genome_Length_Summary
 
-| accession_version | country | collection_date | length |
-| --- | --- | --- | --- |
-| MT163720.1 | USA | 01-Mar-2020 | 29732 |
+| metric | value | accession_version | country | collection_date |
+| --- | --- | --- | --- | --- |
+| sample_count | 35 |  |  |  |
+| mean_length | 29869.80 |  |  |  |
+| shortest_genome | 29732 | MT163720.1 | USA | 01-Mar-2020 |
+| longest_genome | 29945 | MT121215.1 | China | 02-Feb-2020 |
 
-Самый длинный геном:
-
-| accession_version | country | collection_date | length |
-| --- | --- | --- | --- |
-| MT121215.1 | China | 02-Feb-2020 | 29945 |
-
-## Средний состав A/G/C/T
+## Mean_Nucleotide_Composition
 
 | base | mean_count | mean_percent |
 | --- | --- | --- |
@@ -31,7 +33,7 @@
 | C | 5488.0 | 18.37 |
 | T | 9589.86 | 32.11 |
 
-## Clade в текущей выборке
+## Clade_Distribution
 
 | clade | count | percent |
 | --- | --- | --- |
@@ -39,7 +41,7 @@
 | 19B | 11 | 31.43 |
 | 20A | 1 | 2.86 |
 
-## Страны в текущей выборке
+## Country_Distribution
 
 | country | sample_count |
 | --- | --- |
@@ -57,7 +59,7 @@
 | Japan | 1 |
 | Finland | 1 |
 
-## Топ генов по числу изменений
+## Top_Genes_By_Changes
 
 | gene | mutation_type | mutation_observations | sample_count |
 | --- | --- | --- | --- |
@@ -72,7 +74,7 @@
 | ORF1b | amino_acid_deletion | 1 | 1 |
 | ORF1b | amino_acid_insertion | 1 | 1 |
 
-## Топ аминокислотных замен
+## Top_Amino_Acid_Substitutions
 
 | gene | mutation | sample_count | percent_of_samples |
 | --- | --- | --- | --- |
@@ -87,13 +89,8 @@
 | E | L37H | 1 | 2.86 |
 | N | P46S | 1 | 2.86 |
 
-## Проверка D614G
+## D614G
 
-Обнаружена: 1 образцов; страны: USA.
-
-## Короткое сравнение с дипломом
-
-- В дипломе наиболее вариабельным указан ген **S**.
-- В текущей выборке по листу `Nextclade_Gene_Summary` на первом месте: **ORF1a**.
-- Это не противоречие само по себе: текущая выборка намного меньше и имеет другой состав.
-- Сильная сторона текущего проекта: отчет обновляется автоматически после пересборки Excel.
+| mutation | sample_count | countries |
+| --- | --- | --- |
+| S:D614G | 1 | USA |
