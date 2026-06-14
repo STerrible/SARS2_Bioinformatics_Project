@@ -10,6 +10,7 @@ from sars2_pipeline.config import (
 from sars2_pipeline.excel_export import write_excel
 from sars2_pipeline.genbank_parser import extract_genbank_tables, read_genbank_records
 from sars2_pipeline.nextclade import read_nextclade_tsv, run_nextclade
+from sars2_pipeline.nextclade_summary import build_nextclade_summary_tables
 from sars2_pipeline.qc import build_qc_summary
 
 
@@ -35,6 +36,9 @@ def parse_genbank_to_excel(
         nextclade_dataset,
     )
     nextclade_df = read_nextclade_tsv(nextclade_output_tsv)
+    nextclade_qc_df, nextclade_mutations_df, nextclade_summary_df = build_nextclade_summary_tables(
+        nextclade_df,
+    )
 
     write_excel(
         output_xlsx,
@@ -43,6 +47,9 @@ def parse_genbank_to_excel(
         sequence_rows,
         qc_summary_rows,
         nextclade_df,
+        nextclade_qc_df,
+        nextclade_mutations_df,
+        nextclade_summary_df,
     )
 
     print(f"Done: {output_xlsx}")

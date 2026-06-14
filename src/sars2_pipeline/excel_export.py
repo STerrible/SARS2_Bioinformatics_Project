@@ -6,7 +6,10 @@ import pandas as pd
 from sars2_pipeline.config import (
     CDS_SHEET,
     METADATA_SHEET,
+    NEXTCLADE_MUTATIONS_SHEET,
+    NEXTCLADE_QC_SHEET,
     NEXTCLADE_SHEET,
+    NEXTCLADE_SUMMARY_SHEET,
     QC_SUMMARY_SHEET,
     SEQUENCES_SHEET,
 )
@@ -31,6 +34,9 @@ def write_excel(
     sequence_rows,
     qc_summary_rows,
     nextclade_df=None,
+    nextclade_qc_df=None,
+    nextclade_mutations_df=None,
+    nextclade_summary_df=None,
 ):
     output_xlsx = Path(output_xlsx)
 
@@ -48,6 +54,12 @@ def write_excel(
         qc_summary_df.to_excel(writer, sheet_name=QC_SUMMARY_SHEET, index=False)
         if nextclade_df is not None:
             nextclade_df.to_excel(writer, sheet_name=NEXTCLADE_SHEET, index=False)
+        if nextclade_qc_df is not None:
+            nextclade_qc_df.to_excel(writer, sheet_name=NEXTCLADE_QC_SHEET, index=False)
+        if nextclade_mutations_df is not None:
+            nextclade_mutations_df.to_excel(writer, sheet_name=NEXTCLADE_MUTATIONS_SHEET, index=False)
+        if nextclade_summary_df is not None:
+            nextclade_summary_df.to_excel(writer, sheet_name=NEXTCLADE_SUMMARY_SHEET, index=False)
 
         for worksheet in writer.book.worksheets:
             adjust_column_widths(worksheet)
