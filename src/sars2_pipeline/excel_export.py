@@ -6,6 +6,7 @@ import pandas as pd
 from sars2_pipeline.config import (
     CDS_SHEET,
     AMINO_ACID_CHANGES_SHEET,
+    AMINO_ACID_CHANGES_BY_GENE_SHEET,
     COUNTRY_MUTATIONS_SHEET,
     COUNTRY_SUMMARY_SHEET,
     METADATA_SHEET,
@@ -48,6 +49,7 @@ def write_excel(
     country_summary_df=None,
     country_mutations_df=None,
     amino_acid_changes_df=None,
+    amino_acid_changes_by_gene_df=None,
     run_metadata_df=None,
 ):
     output_xlsx = Path(output_xlsx)
@@ -82,6 +84,8 @@ def write_excel(
             country_mutations_df.to_excel(writer, sheet_name=COUNTRY_MUTATIONS_SHEET, index=False)
         if amino_acid_changes_df is not None:
             amino_acid_changes_df.to_excel(writer, sheet_name=AMINO_ACID_CHANGES_SHEET, index=False)
+        if amino_acid_changes_by_gene_df is not None:
+            amino_acid_changes_by_gene_df.to_excel(writer, sheet_name=AMINO_ACID_CHANGES_BY_GENE_SHEET, index=False)
         if run_metadata_df is not None:
             run_metadata_df.to_excel(writer, sheet_name=RUN_METADATA_SHEET, index=False)
 

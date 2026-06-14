@@ -13,10 +13,13 @@ from sars2_pipeline.genbank_parser import extract_genbank_tables, read_genbank_r
 from sars2_pipeline.nextclade import get_nextclade_version, read_nextclade_tsv, run_nextclade
 from sars2_pipeline.nextclade_summary import (
     build_amino_acid_changes,
+    build_amino_acid_changes_by_gene,
     build_country_mutations,
     build_country_summary,
     build_nextclade_gene_summary,
-    build_nextclade_summary_tables,
+    build_nextclade_mutations,
+    build_nextclade_qc,
+    build_nextclade_summary,
     build_nextclade_top_mutations,
     build_run_metadata,
     enrich_mutations_with_metadata,
@@ -47,16 +50,18 @@ def parse_genbank_to_excel(
         nextclade_dataset,
     )
     nextclade_df = read_nextclade_tsv(nextclade_output_tsv)
-    nextclade_qc_df, nextclade_mutations_df, nextclade_summary_df = build_nextclade_summary_tables(
-        nextclade_df,
-    )
+    nextclade_mutations_df = build_nextclade_mutations(nextclade_df)
+    nextclade_summary_df = build_nextclade_summary(nextclade_df)
     enriched_nextclade_df = enrich_nextclade_with_metadata(nextclade_df, metadata_rows)
     enriched_mutations_df = enrich_mutations_with_metadata(nextclade_mutations_df, metadata_rows)
+    nextclade_qc_df = build_nextclade_qc(enriched_nextclade_df)
+    nextclade_mutations_df = enriched_mutations_df
     nextclade_gene_summary_df = build_nextclade_gene_summary(enriched_mutations_df)
     nextclade_top_mutations_df = build_nextclade_top_mutations(enriched_mutations_df, len(nextclade_df))
     country_summary_df = build_country_summary(enriched_nextclade_df)
     country_mutations_df = build_country_mutations(enriched_mutations_df, enriched_nextclade_df)
     amino_acid_changes_df = build_amino_acid_changes(enriched_mutations_df)
+    amino_acid_changes_by_gene_df = build_amino_acid_changes_by_gene(enriched_mutations_df)
     run_metadata_df = build_run_metadata(
         nextclade_df,
         metadata_rows,
@@ -86,6 +91,7 @@ def parse_genbank_to_excel(
         country_summary_df,
         country_mutations_df,
         amino_acid_changes_df,
+        amino_acid_changes_by_gene_df,
         run_metadata_df,
     )
 

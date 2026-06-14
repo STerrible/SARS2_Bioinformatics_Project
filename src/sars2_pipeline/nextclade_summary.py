@@ -52,6 +52,10 @@ AMINO_ACID_NAMES_RU = {
 }
 
 NEXTCLADE_QC_COLUMNS = [
+    "accession",
+    "accession_version",
+    "country",
+    "collection_date",
     "index",
     "seqName",
     "clade",
@@ -201,7 +205,7 @@ def build_nextclade_summary(nextclade_df):
 
 
 def metadata_frame(metadata_rows):
-    columns = ["accession", "accession_version", "country", "geo_loc_name", "collection_date"]
+    columns = ["accession", "accession_version", "country", "collection_date"]
     metadata_df = pd.DataFrame(metadata_rows)
     for column in columns:
         if column not in metadata_df.columns:
@@ -219,7 +223,10 @@ def enrich_mutations_with_metadata(mutations_df, metadata_rows):
     mutations = mutations_df.copy()
     if "accession_version" not in mutations.columns:
         mutations["accession_version"] = mutations["seqName"].map(extract_accession_version)
-    return mutations.merge(metadata_frame(metadata_rows), on="accession_version", how="left")
+    enriched = mutations.merge(metadata_frame(metadata_rows), on="accession_version", how="left")
+    metadata_columns = ["accession", "accession_version", "country", "collection_date"]
+    other_columns = [column for column in enriched.columns if column not in metadata_columns]
+    return enriched.loc[:, metadata_columns + other_columns]
 
 
 def sample_percent(count, total):
@@ -428,6 +435,53 @@ def build_amino_acid_changes(mutations_df):
         )
         .reset_index()
         .sort_values(["role", "mutation_observations", "sample_count", "amino_acid"], ascending=[True, False, False, True])
+    )
+
+
+def build_amino_acid_changes_by_gene(mutations_df):
+    substitutions = mutations_df[mutations_df["mutation_type"] == "amino_acid_substitution"].copy()
+    rows = []
+
+    for _, row in substitutions.iterrows():
+        aa_from, position, aa_to = parse_amino_acid_substitution(row["mutation"])
+        if not aa_from or not aa_to:
+            continue
+
+        for role, amino_acid in [("reference_amino_acid", aa_from), ("sample_amino_acid", aa_to)]:
+            rows.append({
+                "gene": row["gene"],
+                "role": role,
+                "amino_acid": amino_acid,
+                "amino_acid_name": AMINO_ACID_NAMES.get(amino_acid, ""),
+                "amino_acid_name_ru": AMINO_ACID_NAMES_RU.get(amino_acid, ""),
+                "mutation": row["mutation"],
+                "accession_version": row["accession_version"],
+            })
+
+    changes = pd.DataFrame(rows)
+    if changes.empty:
+        return pd.DataFrame(columns=[
+            "gene",
+            "role",
+            "amino_acid",
+            "amino_acid_name",
+            "amino_acid_name_ru",
+            "mutation_observations",
+            "sample_count",
+        ])
+
+    return (
+        changes
+        .groupby(["gene", "role", "amino_acid", "amino_acid_name", "amino_acid_name_ru"], dropna=False)
+        .agg(
+            mutation_observations=("mutation", "size"),
+            sample_count=("accession_version", unique_sample_count),
+        )
+        .reset_index()
+        .sort_values(
+            ["gene", "role", "mutation_observations", "sample_count", "amino_acid"],
+            ascending=[True, True, False, False, True],
+        )
     )
 
 

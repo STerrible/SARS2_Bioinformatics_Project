@@ -129,10 +129,10 @@ python main.py `
 : Raw-таблица Nextclade без сокращения колонок. Значения `N/A` сохраняются как текст, а не превращаются в пустые значения.
 
 `Nextclade_QC`
-: Удобная QC-таблица по каждому образцу на основе колонок Nextclade: общий QC-статус, score, coverage, missing data, mixed sites, private mutations, SNP clusters, frameshifts, stop codons, warnings и errors.
+: Удобная QC-таблица по каждому образцу на основе колонок Nextclade: accession, accession version, страна, дата сбора, общий QC-статус, score, coverage, missing data, mixed sites, private mutations, SNP clusters, frameshifts, stop codons, warnings и errors.
 
 `Nextclade_Mutations`
-: Нормализованный список мутаций из готовых колонок Nextclade:
+: Нормализованный список мутаций из готовых колонок Nextclade. Для каждой строки добавлены accession, accession version, страна и дата сбора:
 
 - `substitutions`
 - `deletions`
@@ -161,6 +161,9 @@ python main.py `
 
 `Amino_Acid_Changes`
 : Частоты аминокислот, участвующих в аминокислотных заменах. Этот лист помогает проверять тезисы о наиболее часто затрагиваемых аминокислотах, например лейцине, треонине и гистидине.
+
+`Amino_Acid_Changes_By_Gene`
+: Частоты аминокислотных замен отдельно по каждому gene. Лист помогает увидеть, какие аминокислоты чаще затрагиваются в конкретных белках.
 
 `Run_Metadata`
 : Техническая информация о запуске: версия Nextclade, пути к входным и выходным файлам, путь к датасету, время запуска и размеры обработанных таблиц.
@@ -191,7 +194,36 @@ Nextclade_Top_Mutations
 Country_Summary
 Country_Mutations
 Amino_Acid_Changes
+Amino_Acid_Changes_By_Gene
 Run_Metadata
+```
+
+## Markdown-отчет
+
+После создания Excel можно сгенерировать Markdown-отчет, который сопоставляет текущие результаты pipeline с контрольными выводами дипломной работы:
+
+```powershell
+python scripts/generate_report.py
+```
+
+По умолчанию скрипт читает:
+
+```text
+results/genbank_table.xlsx
+```
+
+И создает:
+
+```text
+reports/diploma_comparison.md
+```
+
+При необходимости пути можно переопределить:
+
+```powershell
+python scripts/generate_report.py `
+  --input results/genbank_table.xlsx `
+  --output reports/diploma_comparison.md
 ```
 
 ## Частые проблемы
