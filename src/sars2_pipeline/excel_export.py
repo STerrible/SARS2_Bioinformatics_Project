@@ -7,12 +7,21 @@ from sars2_pipeline.config import (
     METADATA_SHEET,
     MUTATION_COLUMNS,
     MUTATIONS_SHEET,
+    NEXTCLADE_SHEET,
     QC_SUMMARY_SHEET,
     SEQUENCES_SHEET,
 )
 
 
-def write_excel(output_xlsx, metadata_rows, cds_rows, sequence_rows, mutation_rows, qc_summary_rows):
+def write_excel(
+    output_xlsx,
+    metadata_rows,
+    cds_rows,
+    sequence_rows,
+    mutation_rows,
+    qc_summary_rows,
+    nextclade_df=None,
+):
     output_xlsx = Path(output_xlsx)
 
     metadata_df = pd.DataFrame(metadata_rows)
@@ -29,3 +38,5 @@ def write_excel(output_xlsx, metadata_rows, cds_rows, sequence_rows, mutation_ro
         sequences_df.to_excel(writer, sheet_name=SEQUENCES_SHEET, index=False)
         mutations_df.to_excel(writer, sheet_name=MUTATIONS_SHEET, index=False)
         qc_summary_df.to_excel(writer, sheet_name=QC_SUMMARY_SHEET, index=False)
+        if nextclade_df is not None:
+            nextclade_df.to_excel(writer, sheet_name=NEXTCLADE_SHEET, index=False)

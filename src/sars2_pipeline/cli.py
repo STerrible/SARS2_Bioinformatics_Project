@@ -1,14 +1,29 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
-from sars2_pipeline.config import DEFAULT_REFERENCE_ACCESSION
+from sars2_pipeline.config import (
+    DEFAULT_INPUT_FASTA,
+    DEFAULT_NEXTCLADE_DATASET,
+    DEFAULT_NEXTCLADE_EXE,
+    DEFAULT_NEXTCLADE_TSV,
+    DEFAULT_REFERENCE_ACCESSION,
+)
 from sars2_pipeline.excel_export import write_excel
 from sars2_pipeline.genbank_parser import extract_genbank_tables, read_genbank_records
 from sars2_pipeline.mutation_analysis import build_mutation_rows, require_reference_record
+from sars2_pipeline.nextclade import read_nextclade_tsv, run_nextclade
 from sars2_pipeline.qc import build_qc_summary
 
 
-def parse_genbank_to_excel(input_gb, output_xlsx, reference_accession=DEFAULT_REFERENCE_ACCESSION):
+def parse_genbank_to_excel(
+    input_gb,
+    output_xlsx,
+    reference_accession=DEFAULT_REFERENCE_ACCESSION,
+    input_fasta=DEFAULT_INPUT_FASTA,
+    nextclade_output_tsv=DEFAULT_NEXTCLADE_TSV,
+    nextclade_exe=DEFAULT_NEXTCLADE_EXE,
+    nextclade_dataset=DEFAULT_NEXTCLADE_DATASET,
+):
     input_gb = Path(input_gb)
     output_xlsx = Path(output_xlsx)
 
@@ -31,13 +46,30 @@ def parse_genbank_to_excel(input_gb, output_xlsx, reference_accession=DEFAULT_RE
         mutation_count,
     )
 
-    write_excel(output_xlsx, metadata_rows, cds_rows, sequence_rows, mutation_rows, qc_summary_rows)
+    nextclade_output_tsv = run_nextclade(
+        input_fasta,
+        nextclade_output_tsv,
+        nextclade_exe,
+        nextclade_dataset,
+    )
+    nextclade_df = read_nextclade_tsv(nextclade_output_tsv)
+
+    write_excel(
+        output_xlsx,
+        metadata_rows,
+        cds_rows,
+        sequence_rows,
+        mutation_rows,
+        qc_summary_rows,
+        nextclade_df,
+    )
 
     print(f"Done: {output_xlsx}")
     print(f"Records processed: {len(records)}")
     print(f"CDS processed: {len(cds_rows)}")
     print(f"Mutations found: {mutation_count}")
     print(f"Records requiring alignment: {len(not_comparable_records)}")
+    print(f"Nextclade results: {nextclade_output_tsv}")
 
 
 def parse_args():
@@ -60,12 +92,44 @@ def parse_args():
         default=DEFAULT_REFERENCE_ACCESSION,
         help="Reference accession for nucleotide mutation analysis.",
     )
+    parser.add_argument(
+        "--fasta",
+        type=Path,
+        default=project_dir / DEFAULT_INPUT_FASTA,
+        help="Input FASTA file for Nextclade.",
+    )
+    parser.add_argument(
+        "--nextclade-exe",
+        type=Path,
+        default=Path(DEFAULT_NEXTCLADE_EXE),
+        help="Path to nextclade.exe.",
+    )
+    parser.add_argument(
+        "--nextclade-dataset",
+        type=Path,
+        default=Path(DEFAULT_NEXTCLADE_DATASET),
+        help="Path to the local Nextclade dataset.",
+    )
+    parser.add_argument(
+        "--nextclade-output",
+        type=Path,
+        default=project_dir / DEFAULT_NEXTCLADE_TSV,
+        help="Output TSV file for Nextclade results.",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     try:
-        parse_genbank_to_excel(args.input, args.output, args.reference_accession)
-    except ValueError as exc:
+        parse_genbank_to_excel(
+            args.input,
+            args.output,
+            args.reference_accession,
+            args.fasta,
+            args.nextclade_output,
+            args.nextclade_exe,
+            args.nextclade_dataset,
+        )
+    except (PermissionError, ValueError) as exc:
         raise SystemExit(f"Error: {exc}") from None
