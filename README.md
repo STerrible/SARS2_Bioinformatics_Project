@@ -4,7 +4,7 @@
 
 - читает GenBank-файл `data/raw/sequence.gb`;
 - извлекает метаданные, CDS-аннотации и последовательности;
-- запускает локальный Nextclade для FASTA-файла `data/raw/sequence.fasta`;
+- запускает Nextclade CLI для FASTA-файла `data/raw/sequence.fasta`;
 - сохраняет raw-результат Nextclade в `results/nextclade.tsv`;
 - сохраняет выравненные Nextclade-последовательности в `results/aligned.fasta`;
 - добавляет в итоговый Excel raw-лист Nextclade и удобные summary-листы.
@@ -17,24 +17,30 @@
 
 ## Требования
 
-Нужен Python 3.12 или совместимая версия Python 3.
+Рекомендуемый способ запуска - Docker. Он фиксирует версию Nextclade CLI и версию SARS-CoV-2 dataset внутри образа, поэтому результат не зависит от локальной установки `nextclade.exe`.
 
-Python-библиотеки:
-
-```powershell
-pip install pandas openpyxl biopython
-```
-
-Также нужен установленный Nextclade. По умолчанию проект ожидает:
+Зафиксированные версии Docker-сборки:
 
 ```text
-C:\Games\Nextclade\nextclade.exe
-C:\Games\Nextclade\sars-cov-2
+Nextclade CLI: 3.21.2
+Nextclade dataset: nextstrain/sars-cov-2/wuhan-hu-1/orfs
+Nextclade dataset tag: 2026-04-21--09-39-50Z
 ```
 
-(Если я не найду способ более общего оформления в коде, я изменю директории в ближайшее время)
-
 В датасете Nextclade используется референс `MN908947 (Wuhan-Hu-1/2019)`. Его последовательность совпадает с `NC_045512.2` из локального GenBank-файла.
+
+Для локального запуска без Docker нужен Python 3.12 или совместимая версия Python 3, Python-библиотеки из `requirements.txt` и установленный Nextclade CLI:
+
+```powershell
+pip install -r requirements.txt
+```
+
+Пути к локальному Nextclade можно передать через аргументы CLI или переменные окружения:
+
+```powershell
+$env:NEXTCLADE_EXE = "C:\Games\Nextclade\nextclade.exe"
+$env:NEXTCLADE_DATASET = "C:\Games\Nextclade\sars-cov-2"
+```
 
 ## Входные файлы
 
@@ -53,11 +59,13 @@ data/raw/sequence.fasta
 
 ## Запуск
 
-Из корня проекта:
+Воспроизводимый запуск через Docker Compose:
 
 ```powershell
-python main.py
+docker compose up --build pipeline
 ```
+
+Команда собирает образ, скачивает зафиксированный dataset tag внутрь образа, запускает `python main.py` и затем обновляет `reports/diploma_comparison.md`.
 
 После успешного запуска создаются или обновляются:
 
@@ -65,6 +73,16 @@ python main.py
 results/nextclade.tsv
 results/aligned.fasta
 results/genbank_table.xlsx
+reports/diploma_comparison.md
+```
+
+Локальный запуск без Docker:
+
+Из корня проекта:
+
+```powershell
+python main.py
+python scripts/generate_report.py
 ```
 
 Если `results/genbank_table.xlsx` открыт в Excel, Windows может заблокировать запись. В этом случае закройте файл Excel и запустите команду снова.
@@ -80,8 +98,8 @@ python main.py `
   --output results/genbank_table.xlsx `
   --nextclade-output results/nextclade.tsv `
   --nextclade-aligned-fasta results/aligned.fasta `
-  --nextclade-exe C:\Games\Nextclade\nextclade.exe `
-  --nextclade-dataset C:\Games\Nextclade\sars-cov-2
+  --nextclade-exe nextclade `
+  --nextclade-dataset /opt/nextclade/datasets/sars-cov-2
 ```
 
 Параметры:
@@ -91,7 +109,7 @@ python main.py `
 - `--output`: итоговый Excel-файл.
 - `--nextclade-output`: TSV-файл raw-результата Nextclade.
 - `--nextclade-aligned-fasta`: FASTA-файл с выравненными Nextclade-последовательностями.
-- `--nextclade-exe`: путь к `nextclade.exe`.
+- `--nextclade-exe`: путь к `nextclade.exe` или имя команды из `PATH`, например `nextclade`.
 - `--nextclade-dataset`: путь к локальному датасету Nextclade.
 
 ## Листы итогового Excel
@@ -152,7 +170,7 @@ python main.py `
 : Выравненные последовательности из FASTA-файла, созданного Nextclade. Лист содержит `seq_id`, `description` и `aligned_sequence`; это наглядное представление результата Nextclade, а не собственное pairwise alignment в коде проекта.
 
 `Run_Metadata`
-: Техническая информация о запуске: версия Nextclade, пути к входным и выходным файлам, путь к датасету, время запуска и размеры обработанных таблиц.
+: Техническая информация о запуске: версия Nextclade, Docker image, requested/actual dataset tag, пути к входным и выходным файлам, путь к датасету, время запуска и размеры обработанных таблиц.
 
 Все листы Excel автоматически получают ширину столбцов по содержимому.
 
@@ -219,10 +237,10 @@ python scripts/generate_report.py `
 : Итоговый Excel открыт в Excel или другом приложении. Закройте файл и повторите запуск.
 
 `Nextclade executable was not found`
-: Проверьте путь к `nextclade.exe` или передайте правильный путь через `--nextclade-exe`.
+: При Docker-запуске пересоберите образ через `docker compose up --build pipeline`. При локальном запуске проверьте путь к `nextclade.exe`, переменную `NEXTCLADE_EXE` или передайте правильный путь через `--nextclade-exe`.
 
 `Nextclade dataset directory was not found`
-: Проверьте путь к датасету или передайте правильный путь через `--nextclade-dataset`.
+: При Docker-запуске пересоберите образ, чтобы dataset был скачан внутрь контейнера. При локальном запуске проверьте путь к датасету, переменную `NEXTCLADE_DATASET` или передайте правильный путь через `--nextclade-dataset`.
 
 `Input FASTA file was not found`
 : Проверьте наличие `data/raw/sequence.fasta` или передайте путь через `--fasta`.
@@ -234,6 +252,7 @@ python scripts/generate_report.py `
 
 - Pipeline работает с уже подготовленными локальными файлами.
 - Pipeline не загружает данные из NCBI.
+- Docker-сборка загружает только зафиксированный Nextclade dataset tag, а не новые GenBank-данные.
 - Pipeline не выполняет собственный анализ мутаций.
 - Pipeline не выполняет pairwise alignment в коде проекта.
 - Pipeline не запускает Pangolin.

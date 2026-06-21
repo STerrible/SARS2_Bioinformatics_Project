@@ -11,7 +11,13 @@ from sars2_pipeline.config import (
 )
 from sars2_pipeline.excel_export import write_excel
 from sars2_pipeline.genbank_parser import extract_genbank_tables, read_genbank_records
-from sars2_pipeline.nextclade import get_nextclade_version, read_aligned_fasta, read_nextclade_tsv, run_nextclade
+from sars2_pipeline.nextclade import (
+    get_nextclade_version,
+    read_aligned_fasta,
+    read_nextclade_dataset_info,
+    read_nextclade_tsv,
+    run_nextclade,
+)
 from sars2_pipeline.nextclade_summary import (
     build_amino_acid_changes,
     build_amino_acid_changes_by_gene,
@@ -54,6 +60,7 @@ def parse_genbank_to_excel(
     )
     nextclade_df = read_nextclade_tsv(nextclade_output_tsv)
     aligned_fasta_df = read_aligned_fasta(nextclade_aligned_fasta)
+    nextclade_dataset_info = read_nextclade_dataset_info(nextclade_dataset)
     nextclade_mutations_df = build_nextclade_mutations(nextclade_df)
     nextclade_summary_df = build_nextclade_summary(nextclade_df)
     enriched_nextclade_df = enrich_nextclade_with_metadata(nextclade_df, metadata_rows)
@@ -79,6 +86,7 @@ def parse_genbank_to_excel(
         nextclade_dataset,
         get_nextclade_version(nextclade_exe),
         datetime.now().astimezone().isoformat(timespec="seconds"),
+        nextclade_dataset_info,
     )
 
     write_excel(

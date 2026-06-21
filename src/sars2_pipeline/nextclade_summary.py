@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 
 
@@ -498,12 +500,17 @@ def build_run_metadata(
     nextclade_dataset,
     nextclade_version,
     run_timestamp,
+    nextclade_dataset_info=None,
 ):
+    nextclade_dataset_info = nextclade_dataset_info or {}
     rows = [
         ("run_timestamp", run_timestamp),
         ("nextclade_version", nextclade_version),
         ("nextclade_exe", str(nextclade_exe)),
         ("nextclade_dataset", str(nextclade_dataset)),
+        ("nextclade_dataset_name_requested", os.environ.get("NEXTCLADE_DATASET_NAME", "")),
+        ("nextclade_dataset_tag_requested", os.environ.get("NEXTCLADE_DATASET_TAG", "")),
+        ("container_image", os.environ.get("SARS2_PIPELINE_CONTAINER_IMAGE", "")),
         ("input_genbank", str(input_gb)),
         ("input_fasta", str(input_fasta)),
         ("output_excel", str(output_xlsx)),
@@ -517,6 +524,10 @@ def build_run_metadata(
         ("self_mutation_analysis", "disabled"),
         ("pairwise_alignment_in_project_code", "disabled"),
     ]
+    rows.extend(
+        (key, value)
+        for key, value in nextclade_dataset_info.items()
+    )
     return pd.DataFrame(rows, columns=["metric", "value"])
 
 

@@ -145,6 +145,37 @@ def d614g_table(mutations):
     }])
 
 
+def run_metadata_value(run_metadata, metric):
+    if run_metadata.empty or "metric" not in run_metadata.columns or "value" not in run_metadata.columns:
+        return ""
+    rows = run_metadata[run_metadata["metric"] == metric]
+    if rows.empty:
+        return ""
+    return text(rows.iloc[0]["value"])
+
+
+def reproducibility_table(run_metadata):
+    metrics = [
+        ("container_image", "Docker image"),
+        ("nextclade_version", "Nextclade CLI"),
+        ("nextclade_dataset_name_requested", "Requested dataset"),
+        ("nextclade_dataset_tag_requested", "Requested dataset tag"),
+        ("nextclade_dataset_version_tag", "Actual dataset tag"),
+        ("nextclade_dataset_updated_at", "Dataset updated at"),
+        ("nextclade_dataset_reference_name", "Dataset reference"),
+        ("nextclade_dataset_reference_accession", "Dataset reference accession"),
+        ("nextclade_dataset_cli_compatibility", "Dataset CLI compatibility"),
+        ("nextclade_dataset_metadata_status", "Dataset metadata status"),
+        ("nextclade_dataset", "Dataset path"),
+    ]
+    rows = []
+    for metric, label in metrics:
+        value = run_metadata_value(run_metadata, metric)
+        if value:
+            rows.append({"metric": label, "value": value})
+    return pd.DataFrame(rows, columns=["metric", "value"])
+
+
 def diploma_comparison(metadata, gene_summary, amino_acid_changes):
     top_gene = top_genes(gene_summary).iloc[0]
     aa_rows = amino_acid_changes[amino_acid_changes["role"] == "reference_amino_acid"].copy()
@@ -204,12 +235,17 @@ def build_report(excel_path):
     top_mutations = read_sheet(excel_path, "Nextclade_Top_Mutations")
     mutations = read_sheet(excel_path, "Nextclade_Mutations")
     amino_acid_changes = read_sheet(excel_path, "Amino_Acid_Changes")
+    run_metadata = read_sheet(excel_path, "Run_Metadata")
 
     sections = [
         "# Автоматический сравнительный отчет",
         "",
         f"`generated_at`: `{datetime.now().astimezone().isoformat(timespec='seconds')}`",
         f"`source_excel`: `{excel_path}`",
+        "",
+        "## Reproducibility",
+        "",
+        markdown_table(reproducibility_table(run_metadata)),
         "",
         "## Diploma_Comparison",
         "",

@@ -143,6 +143,11 @@ def write_popart_readme(output_path, nexus_files):
         "3. Use the trait legend for coloring by country, month, clade, lineage, or D614G.",
         "4. Export the final figure from PopART as SVG/PNG/PDF.",
         "",
+        "Reproducibility:",
+        "",
+        "- Prefer regenerating these files through the Docker workflow described in the project README.",
+        "- The Docker image freezes the Nextclade CLI version and the SARS-CoV-2 dataset tag used upstream.",
+        "",
         "Generated files:",
         "",
     ]

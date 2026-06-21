@@ -13,6 +13,11 @@ Recommended workflow:
 2. Use `network_traits.tsv` or `network_metadata.tsv` for coloring by country, month, clade, lineage, or D614G.
 3. Build the network in PopART, R, or another external tool.
 
+Reproducibility:
+
+- Prefer regenerating these files through the Docker workflow described in the project README.
+- The Docker image freezes the Nextclade CLI version and the SARS-CoV-2 dataset tag used upstream.
+
 Generated paths:
 
 - alignment: `C:\Users\STerrible\PycharmProjects\SARS2_Bioinformatics_Project\results\phylogenetics\alignment_short.fasta`
