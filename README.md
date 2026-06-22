@@ -15,6 +15,15 @@
 
 Основная точка запуска: `main.py`.
 
+Код разделен на общий пакет `bioseq_pipeline` и organism-specific профили:
+
+- `src/bioseq_pipeline/core`: общие GenBank/FASTA/QC/Excel-функции.
+- `src/bioseq_pipeline/tools`: адаптеры внешних инструментов, сейчас Nextclade.
+- `src/bioseq_pipeline/organisms/sars2`: текущий SARS-CoV-2 workflow.
+- `src/bioseq_pipeline/organisms/tuberculosis`: заготовка под будущий TB workflow.
+
+CLI поддерживает явный выбор профиля: `python main.py sars2`. Для совместимости `python main.py` без профиля также запускает SARS-CoV-2 pipeline.
+
 ## Требования
 
 Рекомендуемый способ запуска - Docker. Он фиксирует версию Nextclade CLI и версию SARS-CoV-2 dataset внутри образа, поэтому результат не зависит от локальной установки `nextclade.exe`.
@@ -65,7 +74,7 @@ data/raw/sequence.fasta
 docker compose up --build pipeline
 ```
 
-Команда собирает образ, скачивает зафиксированный dataset tag внутрь образа, запускает `python main.py` и затем обновляет `reports/diploma_comparison.md`.
+Команда собирает образ, скачивает зафиксированный dataset tag внутрь образа, запускает `python main.py sars2` и затем обновляет `reports/diploma_comparison.md`.
 
 После успешного запуска создаются или обновляются:
 
@@ -81,7 +90,7 @@ reports/diploma_comparison.md
 Из корня проекта:
 
 ```powershell
-python main.py
+python main.py sars2
 python scripts/generate_report.py
 ```
 
@@ -92,7 +101,7 @@ python scripts/generate_report.py
 Можно переопределить входные и выходные пути:
 
 ```powershell
-python main.py `
+python main.py sars2 `
   --input data/raw/sequence.gb `
   --fasta data/raw/sequence.fasta `
   --output results/genbank_table.xlsx `
@@ -179,7 +188,7 @@ python main.py `
 Быстрая проверка без перезаписи основного Excel:
 
 ```powershell
-python main.py --output C:\tmp\genbank_table_check.xlsx
+python main.py sars2 --output C:\tmp\genbank_table_check.xlsx
 ```
 
 Ожидаемый набор листов:

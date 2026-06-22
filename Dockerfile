@@ -44,4 +44,4 @@ RUN mkdir -p "${NEXTCLADE_DATASET}" \
 
 COPY . /app
 
-CMD ["bash", "-c", "/opt/venv/bin/python main.py && /opt/venv/bin/python scripts/generate_report.py"]
+CMD ["bash", "-c", "/opt/venv/bin/python main.py sars2 && /opt/venv/bin/python scripts/generate_report.py"]

@@ -1,23 +1,20 @@
 # Автоматический сравнительный отчет
 
-`generated_at`: `2026-06-20T23:58:35+00:00`
-`source_excel`: `/app/results/genbank_table.xlsx`
+`generated_at`: `2026-06-22T07:58:49+05:00`
+`source_excel`: `C:\Users\STerrible\PycharmProjects\SARS2_Bioinformatics_Project\results\genbank_table.xlsx`
 
 ## Reproducibility
 
 | metric | value |
 | --- | --- |
-| Docker image | sars2-bioinformatics:nextclade-3.21.2 |
 | Nextclade CLI | nextclade 3.21.2 |
-| Requested dataset | nextstrain/sars-cov-2/wuhan-hu-1/orfs |
-| Requested dataset tag | 2026-04-21--09-39-50Z |
 | Actual dataset tag | 2026-04-21--09-39-50Z |
 | Dataset updated at | 2026-04-21T09:39:50Z |
 | Dataset reference | Wuhan-Hu-1/2019 |
 | Dataset reference accession | MN908947 |
 | Dataset CLI compatibility | 3.0.0-alpha.0 |
 | Dataset metadata status | ok |
-| Dataset path | /opt/nextclade/datasets/sars-cov-2 |
+| Dataset path | C:\Games\Nextclade\sars-cov-2 |
 
 ## Diploma_Comparison
 

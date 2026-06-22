@@ -8,7 +8,7 @@ SRC_DIR = PROJECT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from sars2_pipeline.cli import main
+from bioseq_pipeline.cli import main
 
 
 if __name__ == "__main__":

@@ -1,0 +1,32 @@
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test/type/lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local IDE files. Keep the project-level ignore file if it is tracked.
+.idea/*
+!.idea/.gitignore
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Generated local phylogenetics/PopART outputs not already tracked as fixtures.
+results/phylogenetics/alignment_short_mapping.tsv
+results/phylogenetics/network_metadata.tsv
+results/phylogenetics/network_traits.tsv
+results/phylogenetics/popart_*.nex
+results/phylogenetics/popart_*_trait_labels.tsv

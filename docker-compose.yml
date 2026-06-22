@@ -17,4 +17,4 @@ services:
       - ./data:/app/data:ro
       - ./results:/app/results
       - ./reports:/app/reports
-    command: ["bash", "-c", "/opt/venv/bin/python main.py && /opt/venv/bin/python scripts/generate_report.py"]
+    command: ["bash", "-c", "/opt/venv/bin/python main.py sars2 && /opt/venv/bin/python scripts/generate_report.py"]

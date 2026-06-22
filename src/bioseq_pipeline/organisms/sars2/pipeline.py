@@ -2,23 +2,17 @@ from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
 
-from sars2_pipeline.config import (
+from bioseq_pipeline.core.genbank import extract_genbank_tables, read_genbank_records
+from bioseq_pipeline.core.qc import build_qc_summary
+from bioseq_pipeline.organisms.sars2.config import (
     DEFAULT_INPUT_FASTA,
     DEFAULT_NEXTCLADE_ALIGNED_FASTA,
     DEFAULT_NEXTCLADE_DATASET,
     DEFAULT_NEXTCLADE_EXE,
     DEFAULT_NEXTCLADE_TSV,
 )
-from sars2_pipeline.excel_export import write_excel
-from sars2_pipeline.genbank_parser import extract_genbank_tables, read_genbank_records
-from sars2_pipeline.nextclade import (
-    get_nextclade_version,
-    read_aligned_fasta,
-    read_nextclade_dataset_info,
-    read_nextclade_tsv,
-    run_nextclade,
-)
-from sars2_pipeline.nextclade_summary import (
+from bioseq_pipeline.organisms.sars2.excel_export import write_excel
+from bioseq_pipeline.organisms.sars2.nextclade_summary import (
     build_amino_acid_changes,
     build_amino_acid_changes_by_gene,
     build_country_mutations,
@@ -32,7 +26,17 @@ from sars2_pipeline.nextclade_summary import (
     enrich_mutations_with_metadata,
     enrich_nextclade_with_metadata,
 )
-from sars2_pipeline.qc import build_qc_summary
+from bioseq_pipeline.tools.nextclade import (
+    get_nextclade_version,
+    read_aligned_fasta,
+    read_nextclade_dataset_info,
+    read_nextclade_tsv,
+    run_nextclade,
+)
+
+
+def project_dir():
+    return Path(__file__).resolve().parents[4]
 
 
 def parse_genbank_to_excel(
@@ -116,25 +120,24 @@ def parse_genbank_to_excel(
     print(f"Aligned FASTA: {nextclade_aligned_fasta}")
 
 
-def parse_args():
-    project_dir = Path(__file__).resolve().parents[2]
-    parser = ArgumentParser(description="Convert GenBank records to an Excel workbook.")
+def add_sars2_arguments(parser):
+    root_dir = project_dir()
     parser.add_argument(
         "--input",
         type=Path,
-        default=project_dir / "data" / "raw" / "sequence.gb",
+        default=root_dir / "data" / "raw" / "sequence.gb",
         help="Input GenBank file.",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=project_dir / "results" / "genbank_table.xlsx",
+        default=root_dir / "results" / "genbank_table.xlsx",
         help="Output Excel workbook.",
     )
     parser.add_argument(
         "--fasta",
         type=Path,
-        default=project_dir / DEFAULT_INPUT_FASTA,
+        default=root_dir / DEFAULT_INPUT_FASTA,
         help="Input FASTA file for Nextclade.",
     )
     parser.add_argument(
@@ -152,29 +155,37 @@ def parse_args():
     parser.add_argument(
         "--nextclade-output",
         type=Path,
-        default=project_dir / DEFAULT_NEXTCLADE_TSV,
+        default=root_dir / DEFAULT_NEXTCLADE_TSV,
         help="Output TSV file for Nextclade results.",
     )
     parser.add_argument(
         "--nextclade-aligned-fasta",
         type=Path,
-        default=project_dir / DEFAULT_NEXTCLADE_ALIGNED_FASTA,
+        default=root_dir / DEFAULT_NEXTCLADE_ALIGNED_FASTA,
         help="Output aligned FASTA file from Nextclade.",
     )
+
+
+def parse_args():
+    parser = ArgumentParser(description="Run the SARS-CoV-2 GenBank/Nextclade pipeline.")
+    add_sars2_arguments(parser)
     return parser.parse_args()
 
 
+def run_from_args(args):
+    parse_genbank_to_excel(
+        args.input,
+        args.output,
+        args.fasta,
+        args.nextclade_output,
+        args.nextclade_aligned_fasta,
+        args.nextclade_exe,
+        args.nextclade_dataset,
+    )
+
+
 def main():
-    args = parse_args()
     try:
-        parse_genbank_to_excel(
-            args.input,
-            args.output,
-            args.fasta,
-            args.nextclade_output,
-            args.nextclade_aligned_fasta,
-            args.nextclade_exe,
-            args.nextclade_dataset,
-        )
+        run_from_args(parse_args())
     except (PermissionError, ValueError) as exc:
         raise SystemExit(f"Error: {exc}") from None
