@@ -24,6 +24,68 @@
 
 CLI поддерживает явный выбор профиля: `python main.py sars2`. Для совместимости `python main.py` без профиля также запускает SARS-CoV-2 pipeline.
 
+## Команды CLI
+
+Общая справка по доступным профилям:
+
+```powershell
+python main.py --help
+```
+
+Запуск текущего SARS-CoV-2 pipeline:
+
+```powershell
+python main.py sars2
+```
+
+Справка по параметрам SARS-CoV-2 pipeline:
+
+```powershell
+python main.py sars2 --help
+```
+
+Совместимый старый запуск без явного профиля:
+
+```powershell
+python main.py
+```
+
+Алиасы SARS-CoV-2 pipeline:
+
+```powershell
+python main.py sars-cov-2
+python main.py covid
+```
+
+Заготовка под будущий pipeline для туберкулеза:
+
+```powershell
+python main.py tuberculosis
+python main.py tb
+```
+
+Вспомогательные скрипты:
+
+```powershell
+python scripts/genbank_to_excel.py sars2
+python scripts/generate_report.py
+python scripts/create_alignment_short.py
+python scripts/prepare_phylogenetic_network_inputs.py
+python scripts/create_popart_inputs.py
+python scripts/extract_fasta_accessions.py
+```
+
+Извлечение accession-номеров из FASTA для последующего ручного скачивания данных из NCBI:
+
+```powershell
+python scripts/extract_fasta_accessions.py `
+  --input data/raw/sequence.fasta `
+  --output data/raw/accessions_from_fasta.txt `
+  --strip-version
+```
+
+Если `--output` не указан, accession-номера печатаются в консоль.
+
 ## Требования
 
 Рекомендуемый способ запуска - Docker. Он фиксирует версию Nextclade CLI и версию SARS-CoV-2 dataset внутри образа, поэтому результат не зависит от локальной установки `nextclade.exe`.

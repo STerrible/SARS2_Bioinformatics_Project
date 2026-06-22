@@ -1,29 +1,29 @@
-# PopART Inputs
+# Входные файлы для PopART
 
-These NEXUS files are prepared for PopART haplotype network analysis.
+Эти NEXUS-файлы подготовлены для анализа гаплотипической сети в PopART.
 
-Recommended PopART workflow:
+Рекомендуемый порядок работы в PopART:
 
-1. Open one of the `popart_*.nex` files in PopART.
-2. Choose a network method, usually Median Joining or TCS.
-3. Use the trait legend for coloring by country, month, clade, lineage, or D614G.
-4. Export the final figure from PopART as SVG/PNG/PDF.
+1. Откройте один из файлов `popart_*.nex` в PopART.
+2. Выберите метод построения сети, обычно Median Joining или TCS.
+3. Используйте легенду признаков для окраски по стране, месяцу, clade, lineage или D614G.
+4. Экспортируйте итоговую фигуру из PopART в SVG/PNG/PDF.
 
-Reproducibility:
+Воспроизводимость:
 
-- Prefer regenerating these files through the Docker workflow described in the project README.
-- The Docker image freezes the Nextclade CLI version and the SARS-CoV-2 dataset tag used upstream.
+- Лучше пересоздавать эти файлы через Docker workflow, описанный в основном README проекта.
+- Docker-образ фиксирует версию Nextclade CLI и tag SARS-CoV-2 dataset.
 
-Generated files:
+Сгенерированные файлы:
 
-- `popart_country.nex`: coloring by `country`.
-- `popart_month.nex`: coloring by `month`.
-- `popart_clade.nex`: coloring by `clade`.
-- `popart_lineage.nex`: coloring by `lineage`.
-- `popart_d614g.nex`: coloring by `d614g`.
+- `popart_country.nex`: окраска по `country`.
+- `popart_month.nex`: окраска по `month`.
+- `popart_clade.nex`: окраска по `clade`.
+- `popart_lineage.nex`: окраска по `lineage`.
+- `popart_d614g.nex`: окраска по `d614g`.
 
-For each NEXUS file, a matching `*_trait_labels.tsv` file maps PopART-safe
-labels such as `South_Korea` back to the original metadata values.
+Для каждого NEXUS-файла создается парный файл `*_trait_labels.tsv`.
+Он сопоставляет PopART-safe метки, например `South_Korea`, с исходными значениями метаданных.
 
-Note: with 35 genomes the network will be much smaller than the large diploma figures.
-To make a similar dense network, the dataset needs many more genomes across months and countries.
+Примечание: для 35 геномов сеть будет намного меньше, чем крупные схемы из дипломных материалов.
+Чтобы получить сопоставимую плотную сеть, нужен набор с большим числом геномов по разным месяцам и странам.
