@@ -6,13 +6,10 @@ from bioseq_pipeline.organisms.sars2.pipeline import (
     parse_genbank_to_excel,
     run_from_args as run_sars2_from_args,
 )
-
-
-def run_tuberculosis_placeholder(_args):
-    raise SystemExit(
-        "Error: tuberculosis pipeline is not implemented yet. "
-        "The directory is reserved for the future TB-specific workflow."
-    )
+from bioseq_pipeline.organisms.tuberculosis.pipeline import (
+    add_tuberculosis_arguments,
+    run_from_args as run_tuberculosis_from_args,
+)
 
 
 def parse_args(argv=None):
@@ -34,9 +31,10 @@ def parse_args(argv=None):
     tb_parser = subparsers.add_parser(
         "tuberculosis",
         aliases=["tb"],
-        help="Reserved entry point for a future tuberculosis pipeline.",
+        help="Build tuberculosis metadata/counts workbook.",
     )
-    tb_parser.set_defaults(handler=run_tuberculosis_placeholder)
+    add_tuberculosis_arguments(tb_parser)
+    tb_parser.set_defaults(handler=run_tuberculosis_from_args)
 
     return parser.parse_args(argv)
 

@@ -8,9 +8,9 @@ from bioseq_pipeline.core.fasta import create_short_alignment
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[4]
-DEFAULT_ALIGNED_FASTA = PROJECT_DIR / "results" / "aligned.fasta"
-DEFAULT_EXCEL = PROJECT_DIR / "results" / "genbank_table.xlsx"
-DEFAULT_OUTPUT_DIR = PROJECT_DIR / "results" / "phylogenetics"
+DEFAULT_ALIGNED_FASTA = PROJECT_DIR / "results" / "covid_data" / "aligned.fasta"
+DEFAULT_EXCEL = PROJECT_DIR / "results" / "covid_data" / "genbank_table.xlsx"
+DEFAULT_OUTPUT_DIR = PROJECT_DIR / "results" / "covid_data" / "phylogenetics"
 
 
 def read_sheet(excel_path, sheet_name):

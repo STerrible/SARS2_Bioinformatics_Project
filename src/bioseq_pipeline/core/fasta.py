@@ -6,9 +6,9 @@ from Bio import SeqIO
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[3]
-DEFAULT_INPUT = PROJECT_DIR / "results" / "aligned.fasta"
-DEFAULT_OUTPUT = PROJECT_DIR / "results" / "phylogenetics" / "alignment_short.fasta"
-DEFAULT_MAPPING = PROJECT_DIR / "results" / "phylogenetics" / "alignment_short_mapping.tsv"
+DEFAULT_INPUT = PROJECT_DIR / "results" / "covid_data" / "aligned.fasta"
+DEFAULT_OUTPUT = PROJECT_DIR / "results" / "covid_data" / "phylogenetics" / "alignment_short.fasta"
+DEFAULT_MAPPING = PROJECT_DIR / "results" / "covid_data" / "phylogenetics" / "alignment_short_mapping.tsv"
 
 
 def short_name(record_id, used_names):

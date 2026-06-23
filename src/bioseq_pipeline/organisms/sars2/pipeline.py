@@ -125,13 +125,13 @@ def add_sars2_arguments(parser):
     parser.add_argument(
         "--input",
         type=Path,
-        default=root_dir / "data" / "raw" / "sequence.gb",
+        default=root_dir / "data" / "raw" / "covid_data" / "sequence.gb",
         help="Input GenBank file.",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=root_dir / "results" / "genbank_table.xlsx",
+        default=root_dir / "results" / "covid_data" / "genbank_table.xlsx",
         help="Output Excel workbook.",
     )
     parser.add_argument(

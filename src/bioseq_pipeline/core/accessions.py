@@ -7,7 +7,7 @@ from Bio import SeqIO
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[3]
-DEFAULT_FASTA = PROJECT_DIR / "data" / "raw" / "sequence.fasta"
+DEFAULT_FASTA = PROJECT_DIR / "data" / "raw" / "covid_data" / "sequence.fasta"
 
 ACCESSION_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])"

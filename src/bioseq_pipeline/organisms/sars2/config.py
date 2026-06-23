@@ -1,11 +1,11 @@
 import os
 
 
-DEFAULT_INPUT_FASTA = "data/raw/sequence.fasta"
+DEFAULT_INPUT_FASTA = "data/raw/covid_data/sequence.fasta"
 DEFAULT_NEXTCLADE_EXE = os.environ.get("NEXTCLADE_EXE", r"C:\Games\Nextclade\nextclade.exe")
 DEFAULT_NEXTCLADE_DATASET = os.environ.get("NEXTCLADE_DATASET", r"C:\Games\Nextclade\sars-cov-2")
-DEFAULT_NEXTCLADE_TSV = "results/nextclade.tsv"
-DEFAULT_NEXTCLADE_ALIGNED_FASTA = "results/aligned.fasta"
+DEFAULT_NEXTCLADE_TSV = "results/covid_data/nextclade.tsv"
+DEFAULT_NEXTCLADE_ALIGNED_FASTA = "results/covid_data/aligned.fasta"
 
 METADATA_SHEET = "Metadata_counts"
 CDS_SHEET = "CDS_features"

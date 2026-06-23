@@ -25,6 +25,8 @@ Thumbs.db
 *.swo
 
 # Generated local phylogenetics/PopART outputs not already tracked as fixtures.
+results/covid_data/
+results/tuberculosis_data/
 results/phylogenetics/alignment_short_mapping.tsv
 results/phylogenetics/network_metadata.tsv
 results/phylogenetics/network_traits.tsv
@@ -32,15 +34,18 @@ results/phylogenetics/popart_*.nex
 results/phylogenetics/popart_*_trait_labels.tsv
 results/phylogenetics/popart_validation_report.md
 
-# Optional local accession lists generated from FASTA.
-data/raw/accessions_from_fasta*.txt
+# Local raw organism data kept out of Git.
+data/raw/covid_data/
+data/raw/tuberculosis_data/
 
-# Local raw inputs, documents, and generated reports kept out of Git.
-data/raw/accessions.txt
+# Legacy raw-data paths kept ignored if old files are regenerated.
+data/raw/accessions*.txt
 data/raw/sequence.fasta
 data/raw/sequence.gb
-data/raw/sequences_20260620_7922469.fasta
-data/raw/sequences/35 штаммов из диплома/sequence.gb
+data/raw/sequences_*.fasta
+data/raw/sequences/
+
+# Local documents and generated reports kept out of Git.
 manual_notes/Diplom.docx
 reports/sars2_analysis_report.md
 results/aligned.fasta

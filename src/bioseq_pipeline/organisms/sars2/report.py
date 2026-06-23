@@ -1,12 +1,13 @@
 import argparse
 from datetime import datetime
 from pathlib import Path
+from zipfile import BadZipFile
 
 import pandas as pd
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[4]
-DEFAULT_EXCEL = PROJECT_DIR / "results" / "genbank_table.xlsx"
+DEFAULT_EXCEL = PROJECT_DIR / "results" / "covid_data" / "genbank_table.xlsx"
 DEFAULT_OUTPUT = PROJECT_DIR / "reports" / "sars2_analysis_report.md"
 
 COLUMN_LABELS = {
@@ -478,7 +479,13 @@ def main():
     if not args.input.exists():
         raise SystemExit(f"Input Excel workbook was not found: {args.input}")
 
-    report = build_report(args.input)
+    try:
+        report = build_report(args.input)
+    except BadZipFile as exc:
+        raise SystemExit(
+            f"Input Excel workbook is not a valid .xlsx file: {args.input}. "
+            "Regenerate it with scripts/genbank_to_excel.py."
+        ) from exc
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(report, encoding="utf-8")
     print(f"Report written: {args.output}")
