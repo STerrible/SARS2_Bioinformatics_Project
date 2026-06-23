@@ -34,3 +34,19 @@ results/phylogenetics/popart_validation_report.md
 
 # Optional local accession lists generated from FASTA.
 data/raw/accessions_from_fasta*.txt
+
+# Local raw inputs, documents, and generated reports kept out of Git.
+data/raw/accessions.txt
+data/raw/sequence.fasta
+data/raw/sequence.gb
+data/raw/sequences_20260620_7922469.fasta
+data/raw/sequences/35 штаммов из диплома/sequence.gb
+manual_notes/Diplom.docx
+reports/sars2_analysis_report.md
+results/aligned.fasta
+results/genbank_table.xlsx
+results/nextclade.tsv
+results/phylogenetics/alignment_short.nwk
+results/phylogenetics/alignment_short.fasta
+results/phylogenetics/README_network_inputs.md
+results/phylogenetics/README_popart.md
