@@ -136,7 +136,7 @@ data/raw/sequence.fasta
 docker compose up --build pipeline
 ```
 
-Команда собирает образ, скачивает зафиксированный dataset tag внутрь образа, запускает `python main.py sars2` и затем обновляет `reports/diploma_comparison.md`.
+Команда собирает образ, скачивает зафиксированный dataset tag внутрь образа, запускает `python main.py sars2` и затем обновляет `reports/sars2_analysis_report.md`.
 
 После успешного запуска создаются или обновляются:
 
@@ -144,7 +144,7 @@ docker compose up --build pipeline
 results/nextclade.tsv
 results/aligned.fasta
 results/genbank_table.xlsx
-reports/diploma_comparison.md
+reports/sars2_analysis_report.md
 ```
 
 Локальный запуск без Docker:
@@ -276,7 +276,7 @@ Run_Metadata
 
 ## Markdown-отчет
 
-После создания Excel можно сгенерировать Markdown-отчет, который сопоставляет текущие результаты pipeline с контрольными выводами дипломной работы:
+После создания Excel можно сгенерировать Markdown-отчет с краткой сводкой, QC, географией выборки, clade/lineage и основными мутациями:
 
 ```powershell
 python scripts/generate_report.py
@@ -291,7 +291,7 @@ results/genbank_table.xlsx
 И создает:
 
 ```text
-reports/diploma_comparison.md
+reports/sars2_analysis_report.md
 ```
 
 При необходимости пути можно переопределить:
@@ -299,7 +299,7 @@ reports/diploma_comparison.md
 ```powershell
 python scripts/generate_report.py `
   --input results/genbank_table.xlsx `
-  --output reports/diploma_comparison.md
+  --output reports/sars2_analysis_report.md
 ```
 
 ## Частые проблемы
