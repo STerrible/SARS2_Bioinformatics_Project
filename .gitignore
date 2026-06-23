@@ -30,6 +30,7 @@ results/phylogenetics/network_metadata.tsv
 results/phylogenetics/network_traits.tsv
 results/phylogenetics/popart_*.nex
 results/phylogenetics/popart_*_trait_labels.tsv
+results/phylogenetics/popart_validation_report.md
 
 # Optional local accession lists generated from FASTA.
 data/raw/accessions_from_fasta*.txt

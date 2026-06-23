@@ -22,6 +22,16 @@ POPART_TRAITS = {
 }
 
 
+def duplicate_values(values):
+    seen = set()
+    duplicates = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        seen.add(value)
+    return sorted(duplicates)
+
+
 def nexus_token(value, prefix="item"):
     text = str(value).strip()
     if not text:
@@ -49,6 +59,160 @@ def read_alignment(alignment_path):
         raise ValueError(f"PopART expects aligned sequences of equal length: {alignment_path}")
 
     return records, sequence_lengths.pop()
+
+
+def validate_nexus_file(nexus_path, expected_taxa, expected_sequence_length, expected_trait_count):
+    nexus_path = Path(nexus_path)
+    messages = []
+    if not nexus_path.exists():
+        return [f"ERROR: NEXUS file was not created: {nexus_path}"]
+
+    content = nexus_path.read_text(encoding="utf-8")
+    upper_content = content.upper()
+    if not content.startswith("#NEXUS"):
+        messages.append(f"ERROR: {nexus_path.name} does not start with #NEXUS.")
+
+    for block_name in ["TAXA", "CHARACTERS", "TRAITS"]:
+        if f"BEGIN {block_name};" not in upper_content:
+            messages.append(f"ERROR: {nexus_path.name} is missing BEGIN {block_name}; block.")
+
+    ntax_match = re.search(r"DIMENSIONS\s+NTAX\s*=\s*(\d+)", content, flags=re.IGNORECASE)
+    nchar_match = re.search(r"DIMENSIONS\s+NCHAR\s*=\s*(\d+)", content, flags=re.IGNORECASE)
+    ntraits_match = re.search(r"DIMENSIONS\s+NTRAITS\s*=\s*(\d+)", content, flags=re.IGNORECASE)
+
+    if not ntax_match or int(ntax_match.group(1)) != expected_taxa:
+        found = ntax_match.group(1) if ntax_match else "missing"
+        messages.append(f"ERROR: {nexus_path.name} NTAX={found}, expected {expected_taxa}.")
+    if not nchar_match or int(nchar_match.group(1)) != expected_sequence_length:
+        found = nchar_match.group(1) if nchar_match else "missing"
+        messages.append(f"ERROR: {nexus_path.name} NCHAR={found}, expected {expected_sequence_length}.")
+    if not ntraits_match or int(ntraits_match.group(1)) != expected_trait_count:
+        found = ntraits_match.group(1) if ntraits_match else "missing"
+        messages.append(f"ERROR: {nexus_path.name} NTRAITS={found}, expected {expected_trait_count}.")
+
+    return messages
+
+
+def validate_popart_inputs(alignment_path, metadata_path, nexus_files, trait_columns):
+    records, sequence_length = read_alignment(alignment_path)
+    metadata = pd.read_csv(metadata_path, sep="\t", keep_default_na=False)
+    errors = []
+    warnings = []
+    details = []
+
+    record_ids = [record.id for record in records]
+    sample_tokens = [nexus_token(record.id, prefix="sample") for record in records]
+    duplicate_record_ids = duplicate_values(record_ids)
+    duplicate_sample_tokens = duplicate_values(sample_tokens)
+    if duplicate_record_ids:
+        errors.append(f"Duplicate FASTA record IDs: {', '.join(duplicate_record_ids[:20])}")
+    if duplicate_sample_tokens:
+        errors.append(f"Duplicate NEXUS-safe sample names: {', '.join(duplicate_sample_tokens[:20])}")
+
+    if "short_name" not in metadata.columns:
+        errors.append(f"Metadata file must contain short_name column: {metadata_path}")
+        return {
+            "status": "FAIL",
+            "errors": errors,
+            "warnings": warnings,
+            "details": details,
+        }
+
+    metadata_names = metadata["short_name"].astype(str).tolist()
+    duplicate_metadata_names = duplicate_values(metadata_names)
+    if duplicate_metadata_names:
+        errors.append(f"Duplicate metadata short_name values: {', '.join(duplicate_metadata_names[:20])}")
+
+    record_id_set = set(record_ids)
+    metadata_name_set = set(metadata_names)
+    missing_metadata = sorted(record_id_set - metadata_name_set)
+    extra_metadata = sorted(metadata_name_set - record_id_set)
+    if missing_metadata:
+        errors.append(f"Samples missing from metadata: {', '.join(missing_metadata[:20])}")
+    if extra_metadata:
+        warnings.append(f"Metadata rows not present in alignment: {', '.join(extra_metadata[:20])}")
+
+    details.append(("alignment_records", len(records)))
+    details.append(("alignment_sequence_length", sequence_length))
+    details.append(("metadata_rows", len(metadata)))
+    details.append(("metadata_columns", len(metadata.columns)))
+
+    for output_name, trait_column in trait_columns.items():
+        if trait_column not in metadata.columns:
+            errors.append(f"Trait column is missing for {output_name}: {trait_column}")
+            continue
+
+        trait_by_sample = {
+            str(row["short_name"]): normalize_trait_value(row[trait_column])
+            for _, row in metadata.iterrows()
+        }
+        trait_values = [trait_by_sample.get(record_id, "unknown") for record_id in record_ids]
+        unknown_count = sum(value == "unknown" for value in trait_values)
+        unique_trait_values = sorted(set(trait_values))
+        if unknown_count:
+            warnings.append(f"{output_name}: {unknown_count} samples have unknown trait values.")
+
+        nexus_path = nexus_files.get(output_name)
+        mapping_path = nexus_path.with_name(f"{nexus_path.stem}_trait_labels.tsv") if nexus_path else None
+        if mapping_path is None or not mapping_path.exists():
+            errors.append(f"{output_name}: trait label mapping file was not created.")
+        else:
+            mapping = pd.read_csv(mapping_path, sep="\t", keep_default_na=False)
+            if len(mapping) != len(unique_trait_values):
+                errors.append(
+                    f"{output_name}: mapping rows={len(mapping)}, expected {len(unique_trait_values)} trait values."
+                )
+
+        if nexus_path is not None:
+            errors.extend(
+                validate_nexus_file(
+                    nexus_path,
+                    len(records),
+                    sequence_length,
+                    len(unique_trait_values),
+                )
+            )
+
+        details.append((f"{output_name}_trait_column", trait_column))
+        details.append((f"{output_name}_trait_values", len(unique_trait_values)))
+        details.append((f"{output_name}_unknown_values", unknown_count))
+
+    status = "FAIL" if errors else "WARN" if warnings else "PASS"
+    return {
+        "status": status,
+        "errors": errors,
+        "warnings": warnings,
+        "details": details,
+    }
+
+
+def write_validation_report(output_path, validation):
+    lines = [
+        "# PopART validation report",
+        "",
+        f"Status: **{validation['status']}**",
+        "",
+        "## Details",
+        "",
+        "| metric | value |",
+        "| --- | --- |",
+    ]
+    for metric, value in validation["details"]:
+        lines.append(f"| {metric} | {value} |")
+
+    lines.extend(["", "## Errors", ""])
+    if validation["errors"]:
+        lines.extend(f"- {message}" for message in validation["errors"])
+    else:
+        lines.append("- None")
+
+    lines.extend(["", "## Warnings", ""])
+    if validation["warnings"]:
+        lines.extend(f"- {message}" for message in validation["warnings"])
+    else:
+        lines.append("- None")
+
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def write_popart_nexus(alignment_path, metadata_path, trait_column, output_path):
@@ -184,11 +348,18 @@ def create_popart_inputs(aligned_fasta, excel_path, output_dir):
 
     readme_path = output_dir / "README_popart.md"
     write_popart_readme(readme_path, nexus_files)
+    validation = validate_popart_inputs(alignment_path, metadata_path, nexus_files, POPART_TRAITS)
+    validation_report_path = output_dir / "popart_validation_report.md"
+    write_validation_report(validation_report_path, validation)
+    if validation["errors"]:
+        raise ValueError(f"PopART input validation failed. See: {validation_report_path}")
 
     return {
         **prepared,
         "nexus_files": nexus_files,
         "popart_readme": readme_path,
+        "validation_report": validation_report_path,
+        "validation_status": validation["status"],
     }
 
 
@@ -224,6 +395,8 @@ def main():
     print(f"Records processed: {outputs['record_count']}")
     for name, path in outputs["nexus_files"].items():
         print(f"PopART {name}: {path}")
+    print(f"Validation: {outputs['validation_status']}")
+    print(f"Validation report: {outputs['validation_report']}")
 
 
 if __name__ == "__main__":
