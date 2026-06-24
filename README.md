@@ -5,9 +5,13 @@
 - COVID / SARS-CoV-2: входные файлы находятся в `data/raw/covid_data/`, результаты пишутся в `results/covid_data/`.
 - Tuberculosis / Mycobacterium tuberculosis: входные файлы находятся в `data/raw/tuberculosis_data/`, результаты пишутся в `results/tuberculosis_data/`.
 
-Ссылка на Яндекс-диск с исходными сырыми данными:
+Ссылка на Яндекс-диск с сырыми данными, над которыми автор вел работу:
 
 https://disk.360.yandex.ru/d/Cxt39v_-ygHNlQ
+
+Ссыка на Яндекс-диск с проведенным анализом на сырых данных, над которыми автор вел работу:
+
+https://disk.360.yandex.ru/d/EzfnX5U-kbM9NA
 
 ## Команды
 
