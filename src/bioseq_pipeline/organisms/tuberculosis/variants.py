@@ -11,8 +11,11 @@ from bioseq_pipeline.organisms.tuberculosis.config import (
     DEFAULT_GENE_SUMMARY_TSV,
     DEFAULT_INPUT_MANIFEST_TSV,
     DEFAULT_ITOL_COUNTRY_STRIP,
+    DEFAULT_ITOL_DRUG_RESISTANCE_SYMBOLS,
     DEFAULT_ITOL_README,
+    DEFAULT_ITOL_REGIONS_STRIP,
     DEFAULT_ITOL_TARGET_HEATMAP,
+    DEFAULT_ITOL_TB_LINEAGE_STRIP,
     DEFAULT_ITOL_VARIANT_BARS,
     DEFAULT_MUTATION_REPORT,
     DEFAULT_MUTATION_SUMMARY_XLSX,
@@ -93,6 +96,93 @@ COUNTRY_COLORS = [
     "#7c2d12",
     "#475569",
 ]
+
+REGION_ORDER = [
+    "China",
+    "Africa",
+    "Europe",
+    "India",
+    "Philippines",
+    "S.Korea",
+    "Thailand",
+    "USA",
+    "Japan",
+    "Other",
+]
+REGION_COLORS = {
+    "China": "#9dc8f1",
+    "Africa": "#f59e0b",
+    "Europe": "#16a34a",
+    "India": "#22c7c7",
+    "Philippines": "#0f2f5f",
+    "S.Korea": "#2563eb",
+    "Thailand": "#0ea5e9",
+    "USA": "#a3e635",
+    "Japan": "#7e22ce",
+    "Other": "#9ca3af",
+}
+COUNTRY_TO_REGION = {
+    "China": "China",
+    "Hong Kong": "China",
+    "Tanzania": "Africa",
+    "Madagascar": "Africa",
+    "Burundi": "Africa",
+    "Rwanda": "Africa",
+    "Cote d'Ivoire": "Africa",
+    "Sweden": "Europe",
+    "Belgium": "Europe",
+    "India": "India",
+    "Philippines": "Philippines",
+    "South Korea": "S.Korea",
+    "Thailand": "Thailand",
+    "USA": "USA",
+    "Japan": "Japan",
+}
+
+LINEAGE_ORDER = ["L1", "L2", "L3", "L4", "L5", "L7", "Unknown"]
+LINEAGE_COLORS = {
+    "L1": "#2d9cdb",
+    "L2": "#e74c3c",
+    "L3": "#f1c40f",
+    "L4": "#2ecc71",
+    "L5": "#9b59b6",
+    "L7": "#7c4a03",
+    "Unknown": "#9ca3af",
+}
+REGION_TO_APPROX_LINEAGE = {
+    "China": "L2",
+    "Japan": "L2",
+    "S.Korea": "L2",
+    "India": "L3",
+    "Philippines": "L1",
+    "Thailand": "L1",
+    "Africa": "L4",
+    "Europe": "L4",
+    "USA": "L4",
+}
+
+DRUG_RESISTANCE_ORDER = ["Pre-XDR", "MDR", "Hr", "RR", "Other", "Sensitive"]
+DRUG_RESISTANCE_COLORS = {
+    "Pre-XDR": "#000000",
+    "MDR": "#ef1c1c",
+    "Hr": "#b33939",
+    "RR": "#ff7f0e",
+    "Other": "#1d4ed8",
+    "Sensitive": "#f4a3b4",
+}
+DRUG_RESISTANCE_SYMBOLS = {
+    "Pre-XDR": "2",
+    "MDR": "2",
+    "Hr": "4",
+    "RR": "5",
+    "Other": "1",
+    "Sensitive": "3",
+}
+ISONIAZID_GENES = {"katG", "inhA", "fabG1"}
+RIFAMPICIN_GENES = {"rpoB", "rpoC"}
+FLUOROQUINOLONE_GENES = {"gyrA", "gyrB"}
+SECOND_LINE_INJECTABLE_GENES = {"rrs", "eis"}
+OTHER_DRUG_RESISTANCE_GENES = set(TARGET_GENE_GROUPS["drug_resistance_candidate"])
 
 SNIPPY_REQUIRED_OUTPUTS = ("snps.tab", "snps.vcf", "snps.aligned.fa", "snps.consensus.fa", "snps.log")
 
@@ -529,6 +619,10 @@ def write_itol_target_heatmap(output_path, target_matrix):
         "SEPARATOR TAB",
         "DATASET_LABEL\tTarget gene mutations",
         "COLOR\t#111827",
+        "COLOR_MIN\t#f8fafc",
+        "COLOR_MAX\t#dc2626",
+        "USER_MIN_VALUE\t0",
+        "USER_MAX_VALUE\t1",
         "FIELD_LABELS\t" + "\t".join(heatmap_genes),
         "FIELD_COLORS\t" + "\t".join(colors),
         "DATA",
@@ -539,7 +633,122 @@ def write_itol_target_heatmap(output_path, target_matrix):
     write_text_lf(output_path, "\n".join(lines) + "\n")
 
 
-def write_itol_readme(readme_path, tree_path, country_strip, variant_bars, target_heatmap):
+def country_to_region(country):
+    return COUNTRY_TO_REGION.get(str(country).strip(), "Other")
+
+
+def approximate_lineage_from_region(region):
+    return REGION_TO_APPROX_LINEAGE.get(str(region).strip(), "Unknown")
+
+
+def write_itol_regions_strip(output_path, sample_summary):
+    lines = [
+        "DATASET_COLORSTRIP",
+        "SEPARATOR TAB",
+        "DATASET_LABEL\tRegions_Legend",
+        "COLOR\t#0ea5e9",
+        "STRIP_WIDTH\t25",
+        "MARGIN\t0",
+        "BORDER_WIDTH\t0",
+        "LEGEND_TITLE\tRegions_Legend",
+        "LEGEND_SHAPES\t" + "\t".join(["1"] * len(REGION_ORDER)),
+        "LEGEND_COLORS\t" + "\t".join(REGION_COLORS[region] for region in REGION_ORDER),
+        "LEGEND_LABELS\t" + "\t".join(REGION_ORDER),
+        "DATA",
+    ]
+    for _, row in sample_summary.iterrows():
+        region = country_to_region(row.get("country", ""))
+        lines.append(f"{row['sample_id']}\t{REGION_COLORS[region]}\t{region}")
+    write_text_lf(output_path, "\n".join(lines) + "\n")
+
+
+def write_itol_lineage_strip(output_path, sample_summary):
+    lines = [
+        "DATASET_COLORSTRIP",
+        "SEPARATOR TAB",
+        "DATASET_LABEL\tTB_Lineages",
+        "COLOR\t#334155",
+        "STRIP_WIDTH\t18",
+        "MARGIN\t0",
+        "BORDER_WIDTH\t0",
+        "LEGEND_TITLE\tTB_Lineages",
+        "LEGEND_SHAPES\t" + "\t".join(["1"] * len(LINEAGE_ORDER)),
+        "LEGEND_COLORS\t" + "\t".join(LINEAGE_COLORS[lineage] for lineage in LINEAGE_ORDER),
+        "LEGEND_LABELS\t" + "\t".join(LINEAGE_ORDER),
+        "DATA",
+    ]
+    for _, row in sample_summary.iterrows():
+        region = country_to_region(row.get("country", ""))
+        lineage = approximate_lineage_from_region(region)
+        lines.append(f"{row['sample_id']}\t{LINEAGE_COLORS[lineage]}\t{lineage}")
+    write_text_lf(output_path, "\n".join(lines) + "\n")
+
+
+def mutated_genes_from_target_row(row):
+    genes = set()
+    for gene in TARGET_GENES:
+        if gene in row and pd.to_numeric(pd.Series([row.get(gene, 0)]), errors="coerce").fillna(0).iloc[0] > 0:
+            genes.add(gene)
+    return genes
+
+
+def candidate_drug_resistance_class(mutated_genes):
+    has_isoniazid = bool(mutated_genes & ISONIAZID_GENES)
+    has_rifampicin = bool(mutated_genes & RIFAMPICIN_GENES)
+    has_fluoroquinolone = bool(mutated_genes & FLUOROQUINOLONE_GENES)
+    has_second_line_injectable = bool(mutated_genes & SECOND_LINE_INJECTABLE_GENES)
+    has_other_drug_marker = bool(mutated_genes & OTHER_DRUG_RESISTANCE_GENES)
+
+    if has_isoniazid and has_rifampicin and has_fluoroquinolone and has_second_line_injectable:
+        return "Pre-XDR"
+    if has_isoniazid and has_rifampicin:
+        return "MDR"
+    if has_isoniazid:
+        return "Hr"
+    if has_rifampicin:
+        return "RR"
+    if has_other_drug_marker:
+        return "Other"
+    return "Sensitive"
+
+
+def write_itol_drug_resistance_symbols(output_path, target_matrix):
+    lines = [
+        "DATASET_SYMBOL",
+        "SEPARATOR TAB",
+        "DATASET_LABEL\tDrug_Resistance",
+        "COLOR\t#111827",
+        "MAXIMUM_SIZE\t20",
+        "LEGEND_TITLE\tDrug_Resistance",
+        "LEGEND_SHAPES\t" + "\t".join(DRUG_RESISTANCE_SYMBOLS[label] for label in DRUG_RESISTANCE_ORDER),
+        "LEGEND_COLORS\t" + "\t".join(DRUG_RESISTANCE_COLORS[label] for label in DRUG_RESISTANCE_ORDER),
+        "LEGEND_LABELS\t" + "\t".join(DRUG_RESISTANCE_ORDER),
+        "DATA",
+    ]
+    for _, row in target_matrix.iterrows():
+        category = candidate_drug_resistance_class(mutated_genes_from_target_row(row))
+        lines.append(
+            f"{row['sample_id']}\t"
+            f"{DRUG_RESISTANCE_SYMBOLS[category]}\t"
+            f"12\t"
+            f"{DRUG_RESISTANCE_COLORS[category]}\t"
+            f"1\t"
+            f"1\t"
+            f"{category}"
+        )
+    write_text_lf(output_path, "\n".join(lines) + "\n")
+
+
+def write_itol_readme(
+    readme_path,
+    tree_path,
+    country_strip,
+    variant_bars,
+    target_heatmap,
+    regions_strip=None,
+    lineage_strip=None,
+    drug_resistance_symbols=None,
+):
     lines = [
         "# TB iTOL annotations",
         "",
@@ -549,9 +758,28 @@ def write_itol_readme(readme_path, tree_path, country_strip, variant_bars, targe
         f"- Country strip: `{country_strip}`",
         f"- Variant count bars: `{variant_bars}`",
         f"- Target gene heatmap: `{target_heatmap}`",
-        "",
-        "The heatmap is based on assembly-derived Snippy variants, not TB-Profiler resistance calls.",
     ]
+    if regions_strip or lineage_strip or drug_resistance_symbols:
+        lines.extend(
+            [
+                "",
+                "## Diploma-style view",
+                "",
+            ]
+        )
+        if regions_strip:
+            lines.append(f"- Regions color strip: `{regions_strip}`")
+        if lineage_strip:
+            lines.append(f"- Approximate TB lineage strip: `{lineage_strip}`")
+        if drug_resistance_symbols:
+            lines.append(f"- Candidate drug-resistance symbols: `{drug_resistance_symbols}`")
+    lines.extend(
+        [
+            "",
+            "The target gene heatmap and drug-resistance symbols are based on assembly-derived Snippy variants, not TB-Profiler resistance calls.",
+            "The TB lineage strip is an approximate visualization layer derived from geographic grouping because lineage calls are not available without a dedicated lineage typing step.",
+        ]
+    )
     write_text_lf(readme_path, "\n".join(lines) + "\n")
 
 
@@ -562,6 +790,9 @@ def export_itol_annotations(
     country_strip=DEFAULT_ITOL_COUNTRY_STRIP,
     variant_bars=DEFAULT_ITOL_VARIANT_BARS,
     target_heatmap=DEFAULT_ITOL_TARGET_HEATMAP,
+    regions_strip=DEFAULT_ITOL_REGIONS_STRIP,
+    lineage_strip=DEFAULT_ITOL_TB_LINEAGE_STRIP,
+    drug_resistance_symbols=DEFAULT_ITOL_DRUG_RESISTANCE_SYMBOLS,
     readme_path=DEFAULT_ITOL_README,
 ):
     sample_summary = safe_read_tsv(sample_summary_tsv)
@@ -573,11 +804,26 @@ def export_itol_annotations(
     write_itol_colorstrip(country_strip, sample_summary)
     write_itol_simplebar(variant_bars, sample_summary)
     write_itol_target_heatmap(target_heatmap, target_matrix)
-    write_itol_readme(readme_path, tree_path, country_strip, variant_bars, target_heatmap)
+    write_itol_regions_strip(regions_strip, sample_summary)
+    write_itol_lineage_strip(lineage_strip, sample_summary)
+    write_itol_drug_resistance_symbols(drug_resistance_symbols, target_matrix)
+    write_itol_readme(
+        readme_path,
+        tree_path,
+        country_strip,
+        variant_bars,
+        target_heatmap,
+        regions_strip=regions_strip,
+        lineage_strip=lineage_strip,
+        drug_resistance_symbols=drug_resistance_symbols,
+    )
     return {
         "country_strip": Path(country_strip),
         "variant_bars": Path(variant_bars),
         "target_heatmap": Path(target_heatmap),
+        "regions_strip": Path(regions_strip),
+        "lineage_strip": Path(lineage_strip),
+        "drug_resistance_symbols": Path(drug_resistance_symbols),
         "readme": Path(readme_path),
     }
 
@@ -676,7 +922,7 @@ def write_final_report(
             "",
             "- `results/tuberculosis_data/variants/tb_mutation_summary.xlsx` содержит таблицы по образцам, генам, целевым генам и исходным вариантам.",
             "- `results/tuberculosis_data/phylogenetics/tb_fasttree.nwk` готов для загрузки в iTOL.",
-            "- `results/tuberculosis_data/itol/` содержит iTOL datasets для страны, числа вариантов и целевых генов.",
+            "- `results/tuberculosis_data/itol/` содержит iTOL datasets для страны, числа вариантов, целевых генов и diploma-style визуализации с регионами, приближенным lineage-слоем и candidate drug-resistance символами.",
             "",
             "## Ограничение",
             "",

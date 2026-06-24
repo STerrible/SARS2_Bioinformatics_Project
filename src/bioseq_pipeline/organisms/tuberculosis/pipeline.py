@@ -33,8 +33,11 @@ from bioseq_pipeline.organisms.tuberculosis.config import (
     DEFAULT_FASTTREE_TREE,
     DEFAULT_GENE_SUMMARY_TSV,
     DEFAULT_ITOL_COUNTRY_STRIP,
+    DEFAULT_ITOL_DRUG_RESISTANCE_SYMBOLS,
     DEFAULT_ITOL_README,
+    DEFAULT_ITOL_REGIONS_STRIP,
     DEFAULT_ITOL_TARGET_HEATMAP,
+    DEFAULT_ITOL_TB_LINEAGE_STRIP,
     DEFAULT_ITOL_VARIANT_BARS,
     DEFAULT_MUTATION_REPORT,
     DEFAULT_MUTATION_SUMMARY_XLSX,
@@ -1528,6 +1531,24 @@ def add_itol_export_arguments(parser):
         help="Output iTOL target-gene heatmap file.",
     )
     parser.add_argument(
+        "--regions-strip",
+        type=Path,
+        default=DEFAULT_ITOL_REGIONS_STRIP,
+        help="Output diploma-style iTOL region color-strip file.",
+    )
+    parser.add_argument(
+        "--lineage-strip",
+        type=Path,
+        default=DEFAULT_ITOL_TB_LINEAGE_STRIP,
+        help="Output diploma-style approximate TB lineage color-strip file.",
+    )
+    parser.add_argument(
+        "--drug-resistance-symbols",
+        type=Path,
+        default=DEFAULT_ITOL_DRUG_RESISTANCE_SYMBOLS,
+        help="Output diploma-style candidate drug-resistance symbol file.",
+    )
+    parser.add_argument(
         "--readme",
         type=Path,
         default=DEFAULT_ITOL_README,
@@ -1743,11 +1764,17 @@ def run_itol_export_command(args):
         country_strip=args.country_strip,
         variant_bars=args.variant_bars,
         target_heatmap=args.target_heatmap,
+        regions_strip=args.regions_strip,
+        lineage_strip=args.lineage_strip,
+        drug_resistance_symbols=args.drug_resistance_symbols,
         readme_path=args.readme,
     )
     print(f"iTOL country strip: {result['country_strip']}")
     print(f"iTOL variant bars: {result['variant_bars']}")
     print(f"iTOL target gene heatmap: {result['target_heatmap']}")
+    print(f"iTOL regions strip: {result['regions_strip']}")
+    print(f"iTOL TB lineage strip: {result['lineage_strip']}")
+    print(f"iTOL drug-resistance symbols: {result['drug_resistance_symbols']}")
     print(f"iTOL README: {result['readme']}")
 
 

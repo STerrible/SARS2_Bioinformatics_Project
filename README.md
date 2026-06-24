@@ -122,6 +122,9 @@ results/tuberculosis_data/variants/tb_mutation_summary.md
 results/tuberculosis_data/itol/itol_country_strip.txt
 results/tuberculosis_data/itol/itol_variant_count_bars.txt
 results/tuberculosis_data/itol/itol_target_gene_heatmap.txt
+results/tuberculosis_data/itol/itol_regions_strip.txt
+results/tuberculosis_data/itol/itol_tb_lineage_strip.txt
+results/tuberculosis_data/itol/itol_drug_resistance_symbols.txt
 reports/tuberculosis_data/tb_analysis_report.md
 ```
 
