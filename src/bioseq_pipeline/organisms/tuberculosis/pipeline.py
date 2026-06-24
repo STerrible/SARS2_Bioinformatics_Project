@@ -1,7 +1,9 @@
 import argparse
 import gzip
 import re
+import shlex
 import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from urllib.error import URLError
@@ -26,13 +28,33 @@ from bioseq_pipeline.organisms.tuberculosis.config import (
     DEFAULT_INPUT_VALIDATION_REPORT,
     DEFAULT_OUTPUT_XLSX,
     DEFAULT_PREPARED_FASTA_DIR,
+    DEFAULT_FASTTREE_LOG,
+    DEFAULT_FASTTREE_README,
+    DEFAULT_FASTTREE_TREE,
+    DEFAULT_PHYLOGENETICS_DIR,
     DEFAULT_REFERENCE_ACCESSION,
     DEFAULT_REFERENCE_DIR,
+    DEFAULT_SNIPPY_COMMANDS,
+    DEFAULT_SNIPPY_CORE_ALN,
+    DEFAULT_SNIPPY_CORE_NO_REFERENCE_ALN,
+    DEFAULT_SNIPPY_CORE_TAB,
+    DEFAULT_SNIPPY_CORE_TXT,
+    DEFAULT_SNIPPY_CORE_VCF,
+    DEFAULT_SNIPPY_DIR,
+    DEFAULT_SNIPPY_MANIFEST,
+    DEFAULT_SNIPPY_README,
+    DEFAULT_SNIPPY_REFERENCE,
+    DEFAULT_SNIPPY_RUNS_DIR,
+    DEFAULT_SNIPPY_SUMMARY_REPORT,
+    DEFAULT_SNIPPY_SUMMARY_XLSX,
     TB_INPUT_MANIFEST_SHEET,
     TB_INPUT_VALIDATION_SHEET,
     TB_ASSEMBLY_METADATA_SHEET,
     TB_METADATA_SHEET,
     TB_RUN_METADATA_SHEET,
+    TB_SNIPPY_CORE_STATS_SHEET,
+    TB_SNIPPY_RUN_STATUS_SHEET,
+    TB_SNIPPY_SUMMARY_SHEET,
 )
 
 
@@ -436,6 +458,643 @@ def prepare_inputs(
     }
 
 
+def path_to_wsl(path):
+    text = str(path).strip()
+    if not text:
+        return ""
+
+    normalized = text.replace("\\", "/")
+    drive_match = re.match(r"^([A-Za-z]):/(.*)$", normalized)
+    if drive_match:
+        drive = drive_match.group(1).lower()
+        rest = drive_match.group(2)
+        return f"/mnt/{drive}/{rest}"
+    return normalized
+
+
+def local_path_from_possible_wsl(path):
+    text = str(path).strip().replace("\\", "/")
+    mount_match = re.match(r"^/mnt/([A-Za-z])/(.*)$", text)
+    if mount_match:
+        drive = mount_match.group(1).upper()
+        rest = mount_match.group(2).replace("/", "\\")
+        return Path(f"{drive}:\\{rest}")
+    return Path(path)
+
+
+def shell_quote(value):
+    return shlex.quote(str(value))
+
+
+def write_text_lf(path, text):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+
+
+def read_input_manifest(manifest_path):
+    manifest_path = Path(manifest_path)
+    if not manifest_path.exists():
+        raise ValueError(f"Input manifest was not found: {manifest_path}")
+
+    manifest_df = pd.read_csv(manifest_path, sep="\t", keep_default_na=False, dtype=str)
+    required_columns = {"sample_id", "prepared_fasta_path"}
+    missing_columns = sorted(required_columns - set(manifest_df.columns))
+    if missing_columns:
+        raise ValueError(f"Input manifest is missing required columns: {', '.join(missing_columns)}")
+    if "warnings" not in manifest_df.columns:
+        manifest_df["warnings"] = ""
+    return manifest_df
+
+
+def build_snippy_plan_rows(manifest_df, include_warnings=False):
+    rows = []
+    skipped = []
+    seen_sample_ids = set()
+
+    for _, row in manifest_df.iterrows():
+        sample_id = str(row.get("sample_id", "")).strip()
+        prepared_fasta_path = str(row.get("prepared_fasta_path", "")).strip()
+        warnings = str(row.get("warnings", "")).strip()
+        skip_reasons = []
+
+        if not sample_id:
+            skip_reasons.append("missing_sample_id")
+        elif sample_id in seen_sample_ids:
+            skip_reasons.append("duplicate_sample_id")
+
+        if not prepared_fasta_path:
+            skip_reasons.append("missing_prepared_fasta_path")
+        elif not local_path_from_possible_wsl(prepared_fasta_path).exists():
+            skip_reasons.append("prepared_fasta_not_found")
+
+        if warnings and not include_warnings:
+            skip_reasons.append(f"manifest_warnings: {warnings}")
+
+        if skip_reasons:
+            skipped.append(
+                {
+                    "sample_id": sample_id or "(missing)",
+                    "prepared_fasta_path": prepared_fasta_path,
+                    "reason": "; ".join(skip_reasons),
+                }
+            )
+            continue
+
+        seen_sample_ids.add(sample_id)
+        rows.append(
+            {
+                "sample_id": sample_id,
+                "prepared_fasta_path": prepared_fasta_path,
+                "prepared_fasta_wsl": path_to_wsl(prepared_fasta_path),
+                "warnings": warnings,
+            }
+        )
+
+    if not rows:
+        raise ValueError("No valid samples were available for Snippy planning.")
+    return rows, skipped
+
+
+def write_snippy_multi(rows, output_path):
+    output_path = Path(output_path)
+    lines = [f"{row['sample_id']}\t{row['prepared_fasta_wsl']}" for row in rows]
+    write_text_lf(output_path, "\n".join(lines) + "\n")
+
+
+def write_snippy_commands(
+    rows,
+    commands_path,
+    reference_path,
+    snippy_dir,
+    runs_dir,
+    snippy_manifest,
+    cpus=4,
+    ram=8,
+    force=False,
+    cleanup=False,
+):
+    commands_path = Path(commands_path)
+
+    extra_flags = []
+    if force:
+        extra_flags.append("--force")
+    if cleanup:
+        extra_flags.append("--cleanup")
+    extra_options = f" {' '.join(extra_flags)}" if extra_flags else ""
+
+    lines = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        "",
+        "# Generated by: python main.py tuberculosis snippy-plan",
+        "# Run inside WSL after activating the conda environment with Snippy.",
+        f"PLAN_DIR={shell_quote(path_to_wsl(snippy_dir))}",
+        f"RUNS_DIR={shell_quote(path_to_wsl(runs_dir))}",
+        f"MULTI={shell_quote(path_to_wsl(snippy_manifest))}",
+        f"REF={shell_quote(path_to_wsl(reference_path))}",
+        f"SNIPPY_CPUS={int(cpus)}",
+        f"SNIPPY_RAM={int(ram)}",
+        "",
+        'if ! command -v snippy >/dev/null 2>&1; then',
+        '  echo "snippy was not found. Activate the conda environment first: conda activate snippy" >&2',
+        "  exit 1",
+        "fi",
+        "",
+        'mkdir -p "$PLAN_DIR" "$RUNS_DIR"',
+        "snippy --check",
+        "",
+        "# These calls use --ctgs because this project currently uses assembly FASTA files, not raw FASTQ reads.",
+    ]
+
+    for row in rows:
+        outdir = Path(runs_dir) / row["sample_id"]
+        lines.append(
+            " ".join(
+                [
+                    "snippy",
+                    '--cpus "$SNIPPY_CPUS"',
+                    '--ram "$SNIPPY_RAM"',
+                    f"--outdir {shell_quote(path_to_wsl(outdir))}",
+                    '--ref "$REF"',
+                    f"--ctgs {shell_quote(row['prepared_fasta_wsl'])}{extra_options}",
+                ]
+            )
+        )
+
+    lines.extend(
+        [
+            "",
+            "# Build a core SNP alignment after all sample runs finish.",
+            'snippy-core --ref "$REF" --prefix "$PLAN_DIR/core" "$RUNS_DIR"/*',
+            "",
+            'echo "Done. Snippy outputs are in: $PLAN_DIR"',
+        ]
+    )
+    write_text_lf(commands_path, "\n".join(lines) + "\n")
+
+
+def write_snippy_readme(
+    readme_path,
+    rows,
+    skipped,
+    commands_path,
+    snippy_manifest,
+    reference_path,
+    snippy_dir,
+    runs_dir,
+    cpus,
+    ram,
+):
+    readme_path = Path(readme_path)
+    skipped_lines = ["- None"] if not skipped else [
+        f"- `{row['sample_id']}`: {row['reason']}"
+        for row in skipped
+    ]
+
+    lines = [
+        "# TB Snippy plan",
+        "",
+        "This directory contains a planned Snippy run for the tuberculosis assembly dataset.",
+        "It does not mean Snippy has already been executed.",
+        "",
+        "## Generated files",
+        "",
+        f"- Snippy multi manifest: `{snippy_manifest}`",
+        f"- Shell command script: `{commands_path}`",
+        f"- Planned Snippy output directory: `{runs_dir}`",
+        f"- Reference GenBank: `{reference_path}`",
+        "",
+        "## Planned run",
+        "",
+        f"- Samples: {len(rows)}",
+        f"- CPU threads per sample: {cpus}",
+        f"- RAM setting per sample: {ram} GB",
+        "- Input mode: assembly FASTA via `snippy --ctgs`",
+        "- Raw FASTQ reads: not used in this training workflow",
+        "",
+        "## How to run in WSL",
+        "",
+        "```bash",
+        "source ~/miniforge3/etc/profile.d/conda.sh",
+        "conda activate snippy",
+        f"bash {path_to_wsl(commands_path)}",
+        "```",
+        "",
+        "## Main outputs after the script finishes",
+        "",
+        f"- Per-sample Snippy folders: `{runs_dir}`",
+        f"- Core SNP alignment prefix: `{Path(snippy_dir) / 'core'}`",
+        "",
+        "## Skipped samples",
+        "",
+        *skipped_lines,
+    ]
+    write_text_lf(readme_path, "\n".join(lines) + "\n")
+
+
+def create_snippy_plan(
+    manifest_path=DEFAULT_INPUT_MANIFEST_TSV,
+    reference_path=DEFAULT_SNIPPY_REFERENCE,
+    snippy_dir=DEFAULT_SNIPPY_DIR,
+    snippy_manifest=None,
+    commands_path=None,
+    readme_path=None,
+    runs_dir=None,
+    cpus=4,
+    ram=8,
+    force=False,
+    cleanup=False,
+    include_warnings=False,
+):
+    if int(cpus) < 1:
+        raise ValueError("--cpus must be at least 1")
+    if int(ram) < 1:
+        raise ValueError("--ram must be at least 1")
+
+    snippy_dir = Path(snippy_dir)
+    snippy_manifest = Path(snippy_manifest) if snippy_manifest else snippy_dir / DEFAULT_SNIPPY_MANIFEST.name
+    commands_path = Path(commands_path) if commands_path else snippy_dir / DEFAULT_SNIPPY_COMMANDS.name
+    readme_path = Path(readme_path) if readme_path else snippy_dir / DEFAULT_SNIPPY_README.name
+    runs_dir = Path(runs_dir) if runs_dir else snippy_dir / DEFAULT_SNIPPY_RUNS_DIR.name
+    reference_path = Path(reference_path)
+
+    if not local_path_from_possible_wsl(reference_path).exists():
+        raise ValueError(f"Reference GenBank was not found: {reference_path}")
+
+    manifest_df = read_input_manifest(manifest_path)
+    rows, skipped = build_snippy_plan_rows(manifest_df, include_warnings=include_warnings)
+
+    snippy_dir.mkdir(parents=True, exist_ok=True)
+    write_snippy_multi(rows, snippy_manifest)
+    write_snippy_commands(
+        rows,
+        commands_path,
+        reference_path,
+        snippy_dir,
+        runs_dir,
+        snippy_manifest,
+        cpus=cpus,
+        ram=ram,
+        force=force,
+        cleanup=cleanup,
+    )
+    write_snippy_readme(
+        readme_path,
+        rows,
+        skipped,
+        commands_path,
+        snippy_manifest,
+        reference_path,
+        snippy_dir,
+        runs_dir,
+        cpus,
+        ram,
+    )
+
+    return {
+        "samples": len(rows),
+        "skipped": len(skipped),
+        "snippy_manifest": snippy_manifest,
+        "commands": commands_path,
+        "readme": readme_path,
+        "runs_dir": runs_dir,
+        "reference": reference_path,
+    }
+
+
+def count_data_lines(path, comment_prefix=None, has_header=False):
+    path = Path(path)
+    if not path.exists():
+        return 0
+
+    count = 0
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if comment_prefix and line.startswith(comment_prefix):
+                continue
+            if line.strip():
+                count += 1
+    if has_header and count > 0:
+        count -= 1
+    return count
+
+
+def fasta_count_and_length(path):
+    path = Path(path)
+    if not path.exists():
+        return 0, 0
+
+    record_count = 0
+    first_length = 0
+    current_length = 0
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                if record_count == 1 and first_length == 0:
+                    first_length = current_length
+                record_count += 1
+                current_length = 0
+            else:
+                current_length += len(line)
+    if record_count == 1 and first_length == 0:
+        first_length = current_length
+    return record_count, first_length
+
+
+def write_fasta_excluding_ids(input_path, output_path, excluded_ids):
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    excluded_ids = set(excluded_ids)
+
+    total = 0
+    written = 0
+    excluded = 0
+    write_current = False
+    with input_path.open("r", encoding="utf-8", errors="replace") as source, output_path.open(
+        "w",
+        encoding="utf-8",
+        newline="\n",
+    ) as destination:
+        for line in source:
+            if line.startswith(">"):
+                total += 1
+                record_id = line[1:].strip().split()[0]
+                write_current = record_id not in excluded_ids
+                if write_current:
+                    written += 1
+                    destination.write(line)
+                else:
+                    excluded += 1
+                continue
+            if write_current:
+                destination.write(line)
+
+    return {
+        "input": input_path,
+        "output": output_path,
+        "total_records": total,
+        "written_records": written,
+        "excluded_records": excluded,
+    }
+
+
+def read_snippy_core_stats(core_txt):
+    core_txt = Path(core_txt)
+    if not core_txt.exists():
+        raise ValueError(f"Snippy core summary was not found: {core_txt}")
+
+    stats_df = pd.read_csv(core_txt, sep="\t", keep_default_na=False, dtype=str)
+    numeric_columns = ["LENGTH", "ALIGNED", "UNALIGNED", "VARIANT", "HET", "MASKED", "LOWCOV"]
+    for column in numeric_columns:
+        if column in stats_df.columns:
+            stats_df[column] = pd.to_numeric(stats_df[column], errors="coerce").fillna(0).astype("int64")
+
+    if {"ALIGNED", "LENGTH"}.issubset(stats_df.columns):
+        stats_df["ALIGNED_%"] = stats_df.apply(
+            lambda row: round(row["ALIGNED"] / row["LENGTH"] * 100, 2) if row["LENGTH"] else 0,
+            axis=1,
+        )
+    if {"UNALIGNED", "LENGTH"}.issubset(stats_df.columns):
+        stats_df["UNALIGNED_%"] = stats_df.apply(
+            lambda row: round(row["UNALIGNED"] / row["LENGTH"] * 100, 2) if row["LENGTH"] else 0,
+            axis=1,
+        )
+    return stats_df
+
+
+def build_snippy_run_status(runs_dir):
+    runs_dir = Path(runs_dir)
+    if not runs_dir.exists():
+        raise ValueError(f"Snippy runs directory was not found: {runs_dir}")
+
+    rows = []
+    for run_dir in sorted(path for path in runs_dir.iterdir() if path.is_dir()):
+        snps_tab = run_dir / "snps.tab"
+        snps_vcf = run_dir / "snps.vcf"
+        snps_aligned = run_dir / "snps.aligned.fa"
+        snps_consensus = run_dir / "snps.consensus.fa"
+        snps_log = run_dir / "snps.log"
+        required_paths = [snps_tab, snps_vcf, snps_aligned, snps_consensus, snps_log]
+        missing = [path.name for path in required_paths if not path.exists() or path.stat().st_size == 0]
+        rows.append(
+            {
+                "sample_id": run_dir.name,
+                "run_dir": str(run_dir),
+                "status": "complete" if not missing else "incomplete",
+                "missing_outputs": ";".join(missing),
+                "snps_tab_rows": count_data_lines(snps_tab, has_header=True),
+                "snps_vcf_variants": count_data_lines(snps_vcf, comment_prefix="#"),
+                "snps_aligned_exists": snps_aligned.exists() and snps_aligned.stat().st_size > 0,
+                "snps_consensus_exists": snps_consensus.exists() and snps_consensus.stat().st_size > 0,
+                "snps_log_exists": snps_log.exists() and snps_log.stat().st_size > 0,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def build_snippy_summary_table(core_stats_df, run_status_df, core_aln, core_tab, core_vcf):
+    sample_rows = core_stats_df[core_stats_df["ID"].astype(str) != "Reference"] if "ID" in core_stats_df.columns else core_stats_df
+    complete_runs = int(run_status_df["status"].eq("complete").sum()) if "status" in run_status_df.columns else 0
+    fasta_records, alignment_length = fasta_count_and_length(core_aln)
+    rows = [
+        ("generated_at", datetime.now().astimezone().isoformat(timespec="seconds")),
+        ("snippy_runs", len(run_status_df)),
+        ("complete_runs", complete_runs),
+        ("incomplete_runs", len(run_status_df) - complete_runs),
+        ("core_stats_samples", len(sample_rows)),
+        ("core_alignment_records", fasta_records),
+        ("core_alignment_length", alignment_length),
+        ("core_tab_variant_rows", count_data_lines(core_tab, has_header=True)),
+        ("core_vcf_variant_rows", count_data_lines(core_vcf, comment_prefix="#")),
+        ("median_sample_variants", float(sample_rows["VARIANT"].median()) if "VARIANT" in sample_rows.columns and not sample_rows.empty else 0),
+        ("max_sample_variants", int(sample_rows["VARIANT"].max()) if "VARIANT" in sample_rows.columns and not sample_rows.empty else 0),
+        ("min_sample_variants", int(sample_rows["VARIANT"].min()) if "VARIANT" in sample_rows.columns and not sample_rows.empty else 0),
+    ]
+    return pd.DataFrame(rows, columns=["metric", "value"])
+
+
+def write_snippy_summary_report(report_path, summary_df, run_status_df, core_stats_df, core_aln, core_tab, core_vcf):
+    incomplete = run_status_df[run_status_df["status"] != "complete"] if "status" in run_status_df.columns else pd.DataFrame()
+    summary_lookup = {row["metric"]: row["value"] for _, row in summary_df.iterrows()}
+    lines = [
+        "# TB Snippy summary",
+        "",
+        "## Summary",
+        "",
+        "| metric | value |",
+        "| --- | --- |",
+    ]
+    for _, row in summary_df.iterrows():
+        lines.append(f"| {row['metric']} | {row['value']} |")
+
+    lines.extend(
+        [
+            "",
+            "## Key files",
+            "",
+            f"- Core SNP alignment: `{core_aln}`",
+            f"- SNP matrix: `{core_tab}`",
+            f"- Core VCF: `{core_vcf}`",
+            "",
+            "## Run validation",
+            "",
+            f"- Complete Snippy runs: {summary_lookup.get('complete_runs', 0)}",
+            f"- Incomplete Snippy runs: {summary_lookup.get('incomplete_runs', 0)}",
+            "",
+        ]
+    )
+
+    if incomplete.empty:
+        lines.append("- No incomplete runs detected.")
+    else:
+        for _, row in incomplete.iterrows():
+            lines.append(f"- `{row['sample_id']}`: missing `{row['missing_outputs']}`")
+
+    if "VARIANT" in core_stats_df.columns and "ID" in core_stats_df.columns:
+        top_variants = core_stats_df[core_stats_df["ID"].astype(str) != "Reference"].sort_values("VARIANT", ascending=False).head(10)
+        lines.extend(["", "## Highest per-sample variant counts", "", "| sample_id | variants | aligned_% |", "| --- | ---: | ---: |"])
+        for _, row in top_variants.iterrows():
+            lines.append(f"| {row['ID']} | {row['VARIANT']} | {row.get('ALIGNED_%', '')} |")
+
+    write_text_lf(report_path, "\n".join(lines) + "\n")
+
+
+def write_snippy_summary(
+    runs_dir=DEFAULT_SNIPPY_RUNS_DIR,
+    core_txt=DEFAULT_SNIPPY_CORE_TXT,
+    core_aln=DEFAULT_SNIPPY_CORE_ALN,
+    core_tab=DEFAULT_SNIPPY_CORE_TAB,
+    core_vcf=DEFAULT_SNIPPY_CORE_VCF,
+    output_xlsx=DEFAULT_SNIPPY_SUMMARY_XLSX,
+    report_path=DEFAULT_SNIPPY_SUMMARY_REPORT,
+):
+    core_aln = Path(core_aln)
+    core_tab = Path(core_tab)
+    core_vcf = Path(core_vcf)
+    for path, label in [(core_aln, "core alignment"), (core_tab, "core SNP table"), (core_vcf, "core VCF")]:
+        if not path.exists():
+            raise ValueError(f"Snippy {label} was not found: {path}")
+
+    core_stats_df = read_snippy_core_stats(core_txt)
+    run_status_df = build_snippy_run_status(runs_dir)
+    summary_df = build_snippy_summary_table(core_stats_df, run_status_df, core_aln, core_tab, core_vcf)
+
+    write_dataframes_to_excel(
+        output_xlsx,
+        [
+            (TB_SNIPPY_SUMMARY_SHEET, summary_df),
+            (TB_SNIPPY_RUN_STATUS_SHEET, run_status_df),
+            (TB_SNIPPY_CORE_STATS_SHEET, core_stats_df),
+        ],
+    )
+    write_snippy_summary_report(report_path, summary_df, run_status_df, core_stats_df, core_aln, core_tab, core_vcf)
+    return {
+        "output_xlsx": Path(output_xlsx),
+        "report": Path(report_path),
+        "runs": len(run_status_df),
+        "complete_runs": int(run_status_df["status"].eq("complete").sum()) if "status" in run_status_df.columns else 0,
+        "core_tab_rows": count_data_lines(core_tab, has_header=True),
+        "core_vcf_rows": count_data_lines(core_vcf, comment_prefix="#"),
+    }
+
+
+def write_fasttree_readme(readme_path, alignment_path, tree_path, log_path, filter_info=None):
+    lines = [
+        "# TB phylogenetics",
+        "",
+        "This directory contains the FastTree result built from the Snippy core SNP alignment.",
+        "",
+        "## Files",
+        "",
+        f"- Input alignment: `{alignment_path}`",
+        f"- Newick tree: `{tree_path}`",
+        f"- FastTree log: `{log_path}`",
+    ]
+    if filter_info:
+        lines.extend(
+            [
+                f"- Original alignment records: {filter_info['total_records']}",
+                f"- Tree alignment records: {filter_info['written_records']}",
+                f"- Excluded records: {filter_info['excluded_records']}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "The Newick tree can be imported into iTOL for visualization and annotation.",
+        ]
+    )
+    write_text_lf(readme_path, "\n".join(lines) + "\n")
+
+
+def run_fasttree_wsl(
+    alignment_path=DEFAULT_SNIPPY_CORE_ALN,
+    filtered_alignment_path=DEFAULT_SNIPPY_CORE_NO_REFERENCE_ALN,
+    tree_path=DEFAULT_FASTTREE_TREE,
+    log_path=DEFAULT_FASTTREE_LOG,
+    readme_path=DEFAULT_FASTTREE_README,
+    distro="Ubuntu",
+    conda_env="snippy",
+    conda_profile="~/miniforge3/etc/profile.d/conda.sh",
+    fasttree_exe="FastTree",
+    gtr=True,
+    exclude_reference=True,
+):
+    alignment_path = Path(alignment_path)
+    filtered_alignment_path = Path(filtered_alignment_path)
+    tree_path = Path(tree_path)
+    log_path = Path(log_path)
+    readme_path = Path(readme_path)
+    if not alignment_path.exists():
+        raise ValueError(f"Core SNP alignment was not found: {alignment_path}")
+
+    fasttree_alignment = alignment_path
+    filter_info = None
+    if exclude_reference:
+        filter_info = write_fasta_excluding_ids(alignment_path, filtered_alignment_path, {"Reference"})
+        if filter_info["written_records"] == 0:
+            raise ValueError(f"No records left after excluding Reference from: {alignment_path}")
+        fasttree_alignment = filtered_alignment_path
+
+    tree_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    flags = "-nt -gtr" if gtr else "-nt"
+    bash_command = " ".join(
+        [
+            f"source {conda_profile}",
+            "&&",
+            f"conda activate {shell_quote(conda_env)}",
+            "&&",
+            "mkdir -p",
+            shell_quote(path_to_wsl(tree_path.parent)),
+            "&&",
+            f"{shell_quote(fasttree_exe)} {flags}",
+            shell_quote(path_to_wsl(fasttree_alignment)),
+            ">",
+            shell_quote(path_to_wsl(tree_path)),
+            "2>",
+            shell_quote(path_to_wsl(log_path)),
+        ]
+    )
+    subprocess.run(["wsl", "-d", distro, "-e", "bash", "-lc", bash_command], check=True)
+    write_fasttree_readme(readme_path, fasttree_alignment, tree_path, log_path, filter_info=filter_info)
+    return {
+        "tree": tree_path,
+        "log": log_path,
+        "readme": readme_path,
+        "alignment": fasttree_alignment,
+        "source_alignment": alignment_path,
+        "filter_info": filter_info,
+        "tree_size": tree_path.stat().st_size if tree_path.exists() else 0,
+    }
+
+
 def build_run_metadata(assembly_dir, output_xlsx, metadata_df):
     return pd.DataFrame(
         [
@@ -569,6 +1228,192 @@ def add_tuberculosis_arguments(parser):
         help="Only check reference files; do not download missing files from NCBI.",
     )
 
+    snippy_parser = subparsers.add_parser(
+        "snippy-plan",
+        help="Create WSL/Snippy command files from the prepared TB input manifest without running Snippy.",
+    )
+    snippy_parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_INPUT_MANIFEST_TSV,
+        help="Input TSV manifest from prepare-inputs.",
+    )
+    snippy_parser.add_argument(
+        "--reference",
+        type=Path,
+        default=DEFAULT_SNIPPY_REFERENCE,
+        help="Reference GenBank file for Snippy.",
+    )
+    snippy_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_SNIPPY_DIR,
+        help="Directory where Snippy plan files will be written.",
+    )
+    snippy_parser.add_argument(
+        "--snippy-manifest",
+        type=Path,
+        default=None,
+        help="Optional explicit output path for snippy_multi.tsv.",
+    )
+    snippy_parser.add_argument(
+        "--commands",
+        type=Path,
+        default=None,
+        help="Optional explicit output path for snippy_commands.sh.",
+    )
+    snippy_parser.add_argument(
+        "--readme",
+        type=Path,
+        default=None,
+        help="Optional explicit output path for README_snippy.md.",
+    )
+    snippy_parser.add_argument(
+        "--runs-dir",
+        type=Path,
+        default=None,
+        help="Optional explicit Snippy output directory. Defaults to <output-dir>/runs.",
+    )
+    snippy_parser.add_argument(
+        "--cpus",
+        type=int,
+        default=4,
+        help="CPU threads per Snippy sample command.",
+    )
+    snippy_parser.add_argument(
+        "--ram",
+        type=int,
+        default=8,
+        help="Snippy RAM setting per sample command, in GB.",
+    )
+    snippy_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Add --force to generated Snippy commands.",
+    )
+    snippy_parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="Add --cleanup to generated Snippy commands.",
+    )
+    snippy_parser.add_argument(
+        "--include-warnings",
+        action="store_true",
+        help="Include manifest rows with validation warnings.",
+    )
+
+    snippy_summary_parser = subparsers.add_parser(
+        "snippy-summary",
+        help="Validate completed Snippy outputs and write summary workbook/report.",
+    )
+    snippy_summary_parser.add_argument(
+        "--runs-dir",
+        type=Path,
+        default=DEFAULT_SNIPPY_RUNS_DIR,
+        help="Directory containing per-sample Snippy run folders.",
+    )
+    snippy_summary_parser.add_argument(
+        "--core-txt",
+        type=Path,
+        default=DEFAULT_SNIPPY_CORE_TXT,
+        help="Snippy core.txt summary file.",
+    )
+    snippy_summary_parser.add_argument(
+        "--core-aln",
+        type=Path,
+        default=DEFAULT_SNIPPY_CORE_ALN,
+        help="Snippy core SNP alignment.",
+    )
+    snippy_summary_parser.add_argument(
+        "--core-tab",
+        type=Path,
+        default=DEFAULT_SNIPPY_CORE_TAB,
+        help="Snippy core SNP table.",
+    )
+    snippy_summary_parser.add_argument(
+        "--core-vcf",
+        type=Path,
+        default=DEFAULT_SNIPPY_CORE_VCF,
+        help="Snippy core VCF.",
+    )
+    snippy_summary_parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_SNIPPY_SUMMARY_XLSX,
+        help="Output Excel summary workbook.",
+    )
+    snippy_summary_parser.add_argument(
+        "--report",
+        type=Path,
+        default=DEFAULT_SNIPPY_SUMMARY_REPORT,
+        help="Output Markdown summary report.",
+    )
+
+    tree_parser = subparsers.add_parser(
+        "build-tree",
+        help="Build a FastTree Newick tree from the Snippy core SNP alignment through WSL.",
+    )
+    tree_parser.add_argument(
+        "--alignment",
+        type=Path,
+        default=DEFAULT_SNIPPY_CORE_ALN,
+        help="Input Snippy core SNP alignment.",
+    )
+    tree_parser.add_argument(
+        "--filtered-alignment",
+        type=Path,
+        default=DEFAULT_SNIPPY_CORE_NO_REFERENCE_ALN,
+        help="Output alignment used for tree building when Reference is excluded.",
+    )
+    tree_parser.add_argument(
+        "--tree",
+        type=Path,
+        default=DEFAULT_FASTTREE_TREE,
+        help="Output Newick tree path.",
+    )
+    tree_parser.add_argument(
+        "--log",
+        type=Path,
+        default=DEFAULT_FASTTREE_LOG,
+        help="Output FastTree log path.",
+    )
+    tree_parser.add_argument(
+        "--readme",
+        type=Path,
+        default=DEFAULT_FASTTREE_README,
+        help="Output phylogenetics README path.",
+    )
+    tree_parser.add_argument(
+        "--wsl-distro",
+        default="Ubuntu",
+        help="WSL distribution name.",
+    )
+    tree_parser.add_argument(
+        "--conda-env",
+        default="snippy",
+        help="Conda environment containing FastTree.",
+    )
+    tree_parser.add_argument(
+        "--conda-profile",
+        default="~/miniforge3/etc/profile.d/conda.sh",
+        help="Conda shell profile path inside WSL.",
+    )
+    tree_parser.add_argument(
+        "--fasttree-exe",
+        default="FastTree",
+        help="FastTree executable name or path inside WSL.",
+    )
+    tree_parser.add_argument(
+        "--no-gtr",
+        action="store_true",
+        help="Use FastTree -nt without -gtr.",
+    )
+    tree_parser.add_argument(
+        "--include-reference",
+        action="store_true",
+        help="Keep the Snippy Reference sequence in the FastTree alignment.",
+    )
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Build tuberculosis metadata/counts workbook.")
@@ -577,7 +1422,72 @@ def parse_args():
 
 
 def run_from_args(args):
-    if getattr(args, "tb_command", "metadata") == "prepare-inputs":
+    tb_command = getattr(args, "tb_command", "metadata")
+
+    if tb_command == "snippy-plan":
+        result = create_snippy_plan(
+            manifest_path=args.manifest,
+            reference_path=args.reference,
+            snippy_dir=args.output_dir,
+            snippy_manifest=args.snippy_manifest,
+            commands_path=args.commands,
+            readme_path=args.readme,
+            runs_dir=args.runs_dir,
+            cpus=args.cpus,
+            ram=args.ram,
+            force=args.force,
+            cleanup=args.cleanup,
+            include_warnings=args.include_warnings,
+        )
+        print(f"Snippy multi manifest: {result['snippy_manifest']}")
+        print(f"Snippy command script: {result['commands']}")
+        print(f"Snippy README: {result['readme']}")
+        print(f"Planned Snippy run directory: {result['runs_dir']}")
+        print(f"Reference GenBank: {result['reference']}")
+        print(f"Samples planned: {result['samples']}")
+        print(f"Samples skipped: {result['skipped']}")
+        return
+
+    if tb_command == "snippy-summary":
+        result = write_snippy_summary(
+            runs_dir=args.runs_dir,
+            core_txt=args.core_txt,
+            core_aln=args.core_aln,
+            core_tab=args.core_tab,
+            core_vcf=args.core_vcf,
+            output_xlsx=args.output,
+            report_path=args.report,
+        )
+        print(f"Snippy summary workbook: {result['output_xlsx']}")
+        print(f"Snippy summary report: {result['report']}")
+        print(f"Snippy runs: {result['runs']}")
+        print(f"Complete Snippy runs: {result['complete_runs']}")
+        print(f"Core SNP table rows: {result['core_tab_rows']}")
+        print(f"Core VCF rows: {result['core_vcf_rows']}")
+        return
+
+    if tb_command == "build-tree":
+        result = run_fasttree_wsl(
+            alignment_path=args.alignment,
+            filtered_alignment_path=args.filtered_alignment,
+            tree_path=args.tree,
+            log_path=args.log,
+            readme_path=args.readme,
+            distro=args.wsl_distro,
+            conda_env=args.conda_env,
+            conda_profile=args.conda_profile,
+            fasttree_exe=args.fasttree_exe,
+            gtr=not args.no_gtr,
+            exclude_reference=not args.include_reference,
+        )
+        print(f"FastTree input alignment: {result['alignment']}")
+        print(f"FastTree Newick tree: {result['tree']}")
+        print(f"FastTree log: {result['log']}")
+        print(f"Phylogenetics README: {result['readme']}")
+        print(f"Tree size: {result['tree_size']} bytes")
+        return
+
+    if tb_command == "prepare-inputs":
         result = prepare_inputs(
             args.assembly_dir,
             args.manifest_tsv,

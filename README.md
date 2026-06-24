@@ -107,6 +107,41 @@ data/raw/tuberculosis_data/reference/NC_000962.3.gb
 
 `tb_input_manifest.tsv` is the central table for later Snippy/TB-Profiler/FastTree automation. It contains stable sample IDs, paths to FASTA/GenBank/assembly-report files, metadata, length/N/GC checks, and warnings.
 
+Tuberculosis Snippy plan generation:
+
+```powershell
+python main.py tuberculosis snippy-plan
+```
+
+This command does not run Snippy. It creates WSL-ready command files from `tb_input_manifest.tsv`:
+
+```text
+results/tuberculosis_data/snippy/snippy_multi.tsv
+results/tuberculosis_data/snippy/snippy_commands.sh
+results/tuberculosis_data/snippy/README_snippy.md
+```
+
+Run the generated `snippy_commands.sh` later from WSL after activating the `snippy` conda environment.
+
+After Snippy has finished, validate the outputs and build the FastTree Newick tree:
+
+```powershell
+python main.py tuberculosis snippy-summary
+python main.py tuberculosis build-tree
+```
+
+These commands create:
+
+```text
+results/tuberculosis_data/snippy/snippy_summary.xlsx
+results/tuberculosis_data/snippy/snippy_summary.md
+results/tuberculosis_data/snippy/core.no_reference.aln
+results/tuberculosis_data/phylogenetics/tb_fasttree.nwk
+results/tuberculosis_data/phylogenetics/fasttree.log
+```
+
+`build-tree` excludes Snippy's `Reference` sequence by default, so `tb_fasttree.nwk` represents the 103 analyzed TB assemblies. Use `--include-reference` if a reference-containing tree is needed.
+
 В TB Excel создаются листы:
 
 ```text
@@ -126,6 +161,10 @@ python scripts/prepare_phylogenetic_network_inputs.py
 python scripts/create_popart_inputs.py
 python scripts/extract_fasta_accessions.py
 python scripts/download_ncbi_assemblies.py --metadata-only
+python main.py tuberculosis prepare-inputs
+python main.py tuberculosis snippy-plan
+python main.py tuberculosis snippy-summary
+python main.py tuberculosis build-tree
 ```
 
 Извлечение accession-номеров из COVID FASTA:
@@ -156,6 +195,6 @@ Nextclade dataset tag: 2026-04-21--09-39-50Z
 - Tuberculosis workflow сейчас делает metadata/counts workbook по NCBI Assembly GenBank-файлам; Nextclade для TB не запускается.
 - TB analysis is intentionally assembly-based for the training project: it uses RefSeq assembly FASTA/GenBank files, not raw FASTQ reads.
 - Raw reads are not downloaded by default because they can require many gigabytes of storage and substantially longer processing time. This is a documented methodological limitation, not a bug.
-- The next TB bioinformatics stages should use `tb_input_manifest.tsv` as their input contract before adding Snippy, TB-Profiler, FastTree, and iTOL export.
+- The next TB bioinformatics stages should use `tb_input_manifest.tsv`, Snippy `core.aln`, and Snippy `core.tab` as their input contracts before adding TB-Profiler and iTOL export.
 - Raw-данные и результаты игнорируются Git через `.gitignore`.
 - Если Excel-файл открыт в Excel/LibreOffice, Windows может заблокировать перезапись. Закрой файл и повтори команду.
