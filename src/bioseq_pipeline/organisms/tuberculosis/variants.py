@@ -493,14 +493,20 @@ def export_itol_annotations(
 def metric_lookup_from_markdown_table(path):
     path = Path(path)
     metrics = {}
+    metric_aliases = {
+        "завершенных Snippy-запусков": "complete_runs",
+        "строк вариантов в `core.tab`": "core_tab_variant_rows",
+    }
     if not path.exists():
         return metrics
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        if not line.startswith("|") or "---" in line or "metric" in line:
+        if not line.startswith("|") or "---" in line or "metric" in line or "показатель" in line:
             continue
         parts = [part.strip() for part in line.strip("|").split("|")]
         if len(parts) >= 2:
             metrics[parts[0]] = parts[1]
+            if parts[0] in metric_aliases:
+                metrics[metric_aliases[parts[0]]] = parts[1]
     return metrics
 
 
@@ -533,57 +539,57 @@ def write_final_report(
             target_counts.append((gene, count, round(count / len(target_matrix) * 100, 2) if len(target_matrix) else 0))
 
     lines = [
-        "# Tuberculosis assembly-based analysis report",
+        "# Отчет об assembly-based анализе туберкулеза",
         "",
-        f"Generated at: {datetime.now().astimezone().isoformat(timespec='seconds')}",
+        f"Сгенерировано: {datetime.now().astimezone().isoformat(timespec='seconds')}",
         "",
-        "## Scope",
+        "## Область анализа",
         "",
-        "This project reproduces the main computational structure of the diploma workflow without TB-Profiler and without raw FASTQ reads. It uses NCBI Assembly genomes, Snippy variant annotations, FastTree phylogeny, and iTOL-ready annotation files.",
+        "Проект воспроизводит основную вычислительную структуру дипломного workflow без TB-Profiler и без raw FASTQ reads. Используются геномы из NCBI Assembly, аннотации вариантов Snippy, филогенетическое дерево FastTree и файлы аннотаций, готовые для загрузки в iTOL.",
         "",
-        "## Inputs",
+        "## Входные данные",
         "",
-        f"- Assemblies in manifest: {len(manifest)}",
-        f"- Samples with mutation summaries: {sample_summary['sample_id'].nunique()}",
+        f"- Сборок в manifest: {len(manifest)}",
+        f"- Образцов со сводками мутаций: {sample_summary['sample_id'].nunique()}",
         f"- Core SNP alignment: `{core_aln}`",
         f"- Core SNP matrix: `{core_tab}`",
-        f"- Snippy core summary: `{core_txt}`",
+        f"- Сводка Snippy core: `{core_txt}`",
         "",
-        "## Snippy and FastTree",
+        "## Snippy и FastTree",
         "",
-        f"- Complete Snippy runs: {snippy_metrics.get('complete_runs', 'not available')}",
-        f"- Core SNP variant rows: {snippy_metrics.get('core_tab_variant_rows', 'not available')}",
-        f"- FastTree Newick tree: `{tree_path}`",
-        f"- FastTree log: `{fasttree_log}`",
+        f"- Завершенные Snippy-запуски: {snippy_metrics.get('complete_runs', 'нет данных')}",
+        f"- Строк вариантов в core SNP matrix: {snippy_metrics.get('core_tab_variant_rows', 'нет данных')}",
+        f"- Newick-дерево FastTree: `{tree_path}`",
+        f"- Лог FastTree: `{fasttree_log}`",
         "",
-        "## Geographic Coverage",
+        "## Географический охват",
         "",
-        "| country | samples |",
+        "| страна | образцы |",
         "| --- | ---: |",
     ]
     for country, count in countries.items():
         lines.append(f"| {country} | {count} |")
 
-    lines.extend(["", "## Target Gene Mutation Frequencies", "", "| gene | samples with variant | frequency, % |", "| --- | ---: | ---: |"])
+    lines.extend(["", "## Частоты мутаций в целевых генах", "", "| ген | образцов с вариантом | частота, % |", "| --- | ---: | ---: |"])
     for gene, count, frequency in target_counts:
         lines.append(f"| {gene} | {count} | {frequency} |")
 
-    lines.extend(["", "## Top Mutated Genes/Loci", "", "| gene/locus | group | samples with variant | variant rows |", "| --- | --- | ---: | ---: |"])
+    lines.extend(["", "## Наиболее изменчивые гены и локусы", "", "| ген/локус | группа | образцов с вариантом | строк вариантов |", "| --- | --- | ---: | ---: |"])
     for _, row in top_genes.iterrows():
         lines.append(f"| {row['gene_key']} | {row['gene_group']} | {row['samples_with_variant']} | {row['variant_rows']} |")
 
     lines.extend(
         [
             "",
-            "## Outputs for Interpretation",
+            "## Файлы для интерпретации",
             "",
-            "- `results/tuberculosis_data/variants/tb_mutation_summary.xlsx` contains sample, gene, target-gene, and raw variant tables.",
-            "- `results/tuberculosis_data/phylogenetics/tb_fasttree.nwk` is ready for iTOL upload.",
-            "- `results/tuberculosis_data/itol/` contains iTOL country, variant-count, and target-gene annotation datasets.",
+            "- `results/tuberculosis_data/variants/tb_mutation_summary.xlsx` содержит таблицы по образцам, генам, целевым генам и исходным вариантам.",
+            "- `results/tuberculosis_data/phylogenetics/tb_fasttree.nwk` готов для загрузки в iTOL.",
+            "- `results/tuberculosis_data/itol/` содержит iTOL datasets для страны, числа вариантов и целевых генов.",
             "",
-            "## Limitation",
+            "## Ограничение",
             "",
-            "Because raw reads are absent, this workflow does not produce formal TB-Profiler resistance classes, allele fractions, read support, or heteroresistance estimates. Drug-resistance genes are summarized as candidate mutation loci only.",
+            "Так как raw reads отсутствуют, workflow не строит формальные TB-Profiler классы устойчивости, allele fractions, read support и оценки heteroresistance. Гены лекарственной устойчивости суммируются только как candidate mutation loci.",
         ]
     )
     write_text_lf(report_path, "\n".join(lines) + "\n")

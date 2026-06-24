@@ -1,9 +1,9 @@
-# SARS-CoV-2 and Tuberculosis Bioinformatics Project
+# Биоинформатический проект SARS-CoV-2 и туберкулеза
 
-Проект разделен на organism-specific workflows:
+Проект разделен на два organism-specific workflow:
 
-- COVID / SARS-CoV-2: входные файлы в `data/raw/covid_data/`, результаты в `results/covid_data/`.
-- Tuberculosis: входные файлы в `data/raw/tuberculosis_data/`, результаты в `results/tuberculosis_data/`.
+- COVID / SARS-CoV-2: входные файлы находятся в `data/raw/covid_data/`, результаты пишутся в `results/covid_data/`.
+- Tuberculosis / Mycobacterium tuberculosis: входные файлы находятся в `data/raw/tuberculosis_data/`, результаты пишутся в `results/tuberculosis_data/`.
 
 ## Структура
 
@@ -19,6 +19,7 @@ data/
       accessions_103.txt
       diploma_35_strains/
       ncbi_assemblies/
+      reference/
 results/
   covid_data/
     genbank_table.xlsx
@@ -26,14 +27,20 @@ results/
     aligned.fasta
     phylogenetics/
   tuberculosis_data/
+    inputs/
+    snippy/
+    phylogenetics/
+    variants/
+    itol/
     tb_metadata.xlsx
 reports/
   covid_data/
     sars2_analysis_report.md
   tuberculosis_data/
+    tb_analysis_report.md
 ```
 
-## Commands
+## Команды
 
 Общая справка:
 
@@ -41,14 +48,14 @@ reports/
 python main.py --help
 ```
 
-SARS-CoV-2 pipeline по умолчанию:
+SARS-CoV-2 workflow по умолчанию:
 
 ```powershell
 python main.py sars2
 python scripts/generate_report.py
 ```
 
-По умолчанию SARS-CoV-2 читает:
+По умолчанию SARS-CoV-2 workflow читает:
 
 ```text
 data/raw/covid_data/sequence.gb
@@ -64,19 +71,21 @@ results/covid_data/aligned.fasta
 reports/covid_data/sars2_analysis_report.md
 ```
 
-SARS-CoV-2 запуск для `sequence1`:
+Запуск SARS-CoV-2 workflow для `sequence1`:
 
 ```powershell
 python scripts/genbank_to_excel.py sars2 --input data/raw/covid_data/sequence1.gb --fasta data/raw/covid_data/sequence1.fasta --output results/covid_data/genbank_table_sequence1.xlsx --nextclade-output results/covid_data/nextclade_sequence1.tsv --nextclade-aligned-fasta results/covid_data/aligned_sequence1.fasta
 ```
 
-Tuberculosis metadata workbook:
+## Workflow для туберкулеза
+
+Создание базовой таблицы метаданных:
 
 ```powershell
 python main.py tuberculosis
 ```
 
-По умолчанию TB workflow читает скачанные NCBI assembly-файлы из:
+По умолчанию TB workflow читает скачанные NCBI Assembly файлы из:
 
 ```text
 data/raw/tuberculosis_data/ncbi_assemblies/
@@ -88,13 +97,13 @@ data/raw/tuberculosis_data/ncbi_assemblies/
 results/tuberculosis_data/tb_metadata.xlsx
 ```
 
-Tuberculosis input preparation for Snippy/TB-Profiler/FastTree stages:
+Подготовка входных файлов для следующих этапов:
 
 ```powershell
 python main.py tuberculosis prepare-inputs
 ```
 
-This command prepares the next analysis layer:
+Команда создает:
 
 ```text
 results/tuberculosis_data/tb_input_manifest.tsv
@@ -105,15 +114,17 @@ data/raw/tuberculosis_data/reference/NC_000962.3.fasta
 data/raw/tuberculosis_data/reference/NC_000962.3.gb
 ```
 
-`tb_input_manifest.tsv` is the central table for later Snippy/TB-Profiler/FastTree automation. It contains stable sample IDs, paths to FASTA/GenBank/assembly-report files, metadata, length/N/GC checks, and warnings.
+`tb_input_manifest.tsv` - центральная таблица для последующей автоматизации Snippy, FastTree, анализа мутаций и iTOL. В ней хранятся стабильные sample ID, пути к FASTA/GenBank/assembly-report файлам, метаданные, проверки длины/N/GC и предупреждения.
 
-Tuberculosis Snippy plan generation:
+## Snippy
+
+Создание плана запуска Snippy:
 
 ```powershell
 python main.py tuberculosis snippy-plan
 ```
 
-This command does not run Snippy. It creates WSL-ready command files from `tb_input_manifest.tsv`:
+Эта команда не запускает Snippy. Она создает WSL-ready файлы команд на основе `tb_input_manifest.tsv`:
 
 ```text
 results/tuberculosis_data/snippy/snippy_multi.tsv
@@ -121,9 +132,9 @@ results/tuberculosis_data/snippy/snippy_commands.sh
 results/tuberculosis_data/snippy/README_snippy.md
 ```
 
-Run the generated `snippy_commands.sh` later from WSL after activating the `snippy` conda environment.
+После этого `snippy_commands.sh` запускается из WSL после активации conda-окружения `snippy`.
 
-After Snippy has finished, validate the outputs and build the FastTree Newick tree:
+После завершения Snippy выполняются следующие этапы:
 
 ```powershell
 python main.py tuberculosis snippy-summary
@@ -133,7 +144,7 @@ python main.py tuberculosis itol-export
 python main.py tuberculosis report
 ```
 
-These commands create:
+Эти команды создают:
 
 ```text
 results/tuberculosis_data/snippy/snippy_summary.xlsx
@@ -149,9 +160,9 @@ results/tuberculosis_data/itol/itol_target_gene_heatmap.txt
 reports/tuberculosis_data/tb_analysis_report.md
 ```
 
-`build-tree` excludes Snippy's `Reference` sequence by default, so `tb_fasttree.nwk` represents the 103 analyzed TB assemblies. Use `--include-reference` if a reference-containing tree is needed.
+`build-tree` по умолчанию исключает служебную последовательность Snippy `Reference`, поэтому `tb_fasttree.nwk` представляет 103 анализируемые TB-сборки. Если нужно дерево с референсом, используется флаг `--include-reference`.
 
-The TB workflow is intentionally completed without TB-Profiler because raw FASTQ reads are not part of this training dataset. Drug-resistance genes are summarized as candidate mutation loci from Snippy annotations, not as formal TB-Profiler resistance calls.
+TB workflow намеренно завершен без TB-Profiler, потому что в учебном наборе данных нет raw FASTQ reads. Гены лекарственной устойчивости суммируются как candidate mutation loci по Snippy-аннотациям, а не как формальные TB-Profiler resistance calls.
 
 В TB Excel создаются листы:
 
@@ -161,7 +172,7 @@ TB_Assembly_metadata
 TB_Run_Metadata
 ```
 
-## Helper Scripts
+## Вспомогательные скрипты
 
 ```powershell
 python scripts/genbank_to_excel.py sars2
@@ -203,12 +214,12 @@ Nextclade dataset: nextstrain/sars-cov-2/wuhan-hu-1/orfs
 Nextclade dataset tag: 2026-04-21--09-39-50Z
 ```
 
-## Notes
+## Примечания
 
 - SARS-CoV-2 workflow использует Nextclade и подходит только для COVID/SARS-CoV-2.
-- Tuberculosis workflow сейчас делает metadata/counts workbook по NCBI Assembly GenBank-файлам; Nextclade для TB не запускается.
-- TB analysis is intentionally assembly-based for the training project: it uses RefSeq assembly FASTA/GenBank files, not raw FASTQ reads.
-- Raw reads are not downloaded by default because they can require many gigabytes of storage and substantially longer processing time. This is a documented methodological limitation, not a bug.
-- The TB workflow now uses `tb_input_manifest.tsv`, Snippy `core.aln`/`core.tab`, FastTree Newick output, and assembly-based mutation summaries as its reproducible input contracts.
+- Tuberculosis workflow строится по NCBI Assembly GenBank/FASTA файлам; Nextclade для TB не запускается.
+- TB-анализ намеренно assembly-based: он использует RefSeq assembly FASTA/GenBank файлы, а не raw FASTQ reads.
+- Raw reads не скачиваются по умолчанию, потому что они могут занимать много гигабайт и резко увеличивают время обработки. Это документированное методическое ограничение, а не ошибка.
+- TB workflow использует `tb_input_manifest.tsv`, Snippy `core.aln`/`core.tab`, FastTree Newick output и assembly-based mutation summaries как воспроизводимые входные контракты между этапами.
 - Raw-данные и результаты игнорируются Git через `.gitignore`.
 - Если Excel-файл открыт в Excel/LibreOffice, Windows может заблокировать перезапись. Закрой файл и повтори команду.

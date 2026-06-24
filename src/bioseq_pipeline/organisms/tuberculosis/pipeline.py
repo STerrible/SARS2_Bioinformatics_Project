@@ -664,33 +664,33 @@ def write_snippy_readme(
     ram,
 ):
     readme_path = Path(readme_path)
-    skipped_lines = ["- None"] if not skipped else [
+    skipped_lines = ["- Нет"] if not skipped else [
         f"- `{row['sample_id']}`: {row['reason']}"
         for row in skipped
     ]
 
     lines = [
-        "# TB Snippy plan",
+        "# План запуска Snippy для TB",
         "",
-        "This directory contains a planned Snippy run for the tuberculosis assembly dataset.",
-        "It does not mean Snippy has already been executed.",
+        "Эта папка содержит план запуска Snippy для набора assembly-данных Mycobacterium tuberculosis.",
+        "Сам факт наличия этих файлов не означает, что Snippy уже был выполнен.",
         "",
-        "## Generated files",
+        "## Созданные файлы",
         "",
         f"- Snippy multi manifest: `{snippy_manifest}`",
-        f"- Shell command script: `{commands_path}`",
-        f"- Planned Snippy output directory: `{runs_dir}`",
-        f"- Reference GenBank: `{reference_path}`",
+        f"- Bash-скрипт запуска: `{commands_path}`",
+        f"- Планируемая папка результатов Snippy: `{runs_dir}`",
+        f"- Референсный GenBank: `{reference_path}`",
         "",
-        "## Planned run",
+        "## Планируемый запуск",
         "",
-        f"- Samples: {len(rows)}",
-        f"- CPU threads per sample: {cpus}",
-        f"- RAM setting per sample: {ram} GB",
-        "- Input mode: assembly FASTA via `snippy --ctgs`",
-        "- Raw FASTQ reads: not used in this training workflow",
+        f"- Образцов: {len(rows)}",
+        f"- CPU threads на один образец: {cpus}",
+        f"- RAM setting на один образец: {ram} GB",
+        "- Режим входных данных: assembly FASTA через `snippy --ctgs`",
+        "- Raw FASTQ reads: не используются в этом учебном workflow",
         "",
-        "## How to run in WSL",
+        "## Как запустить в WSL",
         "",
         "```bash",
         "source ~/miniforge3/etc/profile.d/conda.sh",
@@ -698,12 +698,12 @@ def write_snippy_readme(
         f"bash {path_to_wsl(commands_path)}",
         "```",
         "",
-        "## Main outputs after the script finishes",
+        "## Основные результаты после завершения",
         "",
-        f"- Per-sample Snippy folders: `{runs_dir}`",
-        f"- Core SNP alignment prefix: `{Path(snippy_dir) / 'core'}`",
+        f"- Папки Snippy по каждому образцу: `{runs_dir}`",
+        f"- Префикс core SNP alignment: `{Path(snippy_dir) / 'core'}`",
         "",
-        "## Skipped samples",
+        "## Пропущенные образцы",
         "",
         *skipped_lines,
     ]
@@ -938,43 +938,57 @@ def build_snippy_summary_table(core_stats_df, run_status_df, core_aln, core_tab,
 def write_snippy_summary_report(report_path, summary_df, run_status_df, core_stats_df, core_aln, core_tab, core_vcf):
     incomplete = run_status_df[run_status_df["status"] != "complete"] if "status" in run_status_df.columns else pd.DataFrame()
     summary_lookup = {row["metric"]: row["value"] for _, row in summary_df.iterrows()}
+    metric_labels = {
+        "generated_at": "время генерации",
+        "snippy_runs": "всего Snippy-запусков",
+        "complete_runs": "завершенных Snippy-запусков",
+        "incomplete_runs": "незавершенных Snippy-запусков",
+        "core_stats_samples": "образцов в `core.txt`",
+        "core_alignment_records": "записей в core SNP alignment",
+        "core_alignment_length": "длина core SNP alignment",
+        "core_tab_variant_rows": "строк вариантов в `core.tab`",
+        "core_vcf_variant_rows": "строк вариантов в `core.vcf`",
+        "median_sample_variants": "медианное число вариантов на образец",
+        "max_sample_variants": "максимальное число вариантов на образец",
+        "min_sample_variants": "минимальное число вариантов на образец",
+    }
     lines = [
-        "# TB Snippy summary",
+        "# Сводка Snippy для TB",
         "",
-        "## Summary",
+        "## Общая сводка",
         "",
-        "| metric | value |",
+        "| показатель | значение |",
         "| --- | --- |",
     ]
     for _, row in summary_df.iterrows():
-        lines.append(f"| {row['metric']} | {row['value']} |")
+        lines.append(f"| {metric_labels.get(row['metric'], row['metric'])} | {row['value']} |")
 
     lines.extend(
         [
             "",
-            "## Key files",
+            "## Ключевые файлы",
             "",
             f"- Core SNP alignment: `{core_aln}`",
-            f"- SNP matrix: `{core_tab}`",
+            f"- SNP-матрица: `{core_tab}`",
             f"- Core VCF: `{core_vcf}`",
             "",
-            "## Run validation",
+            "## Проверка запусков",
             "",
-            f"- Complete Snippy runs: {summary_lookup.get('complete_runs', 0)}",
-            f"- Incomplete Snippy runs: {summary_lookup.get('incomplete_runs', 0)}",
+            f"- Завершенные Snippy-запуски: {summary_lookup.get('complete_runs', 0)}",
+            f"- Незавершенные Snippy-запуски: {summary_lookup.get('incomplete_runs', 0)}",
             "",
         ]
     )
 
     if incomplete.empty:
-        lines.append("- No incomplete runs detected.")
+        lines.append("- Незавершенных запусков не обнаружено.")
     else:
         for _, row in incomplete.iterrows():
-            lines.append(f"- `{row['sample_id']}`: missing `{row['missing_outputs']}`")
+            lines.append(f"- `{row['sample_id']}`: отсутствует `{row['missing_outputs']}`")
 
     if "VARIANT" in core_stats_df.columns and "ID" in core_stats_df.columns:
         top_variants = core_stats_df[core_stats_df["ID"].astype(str) != "Reference"].sort_values("VARIANT", ascending=False).head(10)
-        lines.extend(["", "## Highest per-sample variant counts", "", "| sample_id | variants | aligned_% |", "| --- | ---: | ---: |"])
+        lines.extend(["", "## Образцы с наибольшим числом вариантов", "", "| sample_id | варианты | aligned_% |", "| --- | ---: | ---: |"])
         for _, row in top_variants.iterrows():
             lines.append(f"| {row['ID']} | {row['VARIANT']} | {row.get('ALIGNED_%', '')} |")
 
