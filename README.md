@@ -5,6 +5,10 @@
 - COVID / SARS-CoV-2: входные файлы находятся в `data/raw/covid_data/`, результаты пишутся в `results/covid_data/`.
 - Tuberculosis / Mycobacterium tuberculosis: входные файлы находятся в `data/raw/tuberculosis_data/`, результаты пишутся в `results/tuberculosis_data/`.
 
+Ссылка на Яндекс-диск с исходными сырыми данными:
+
+https://disk.360.yandex.ru/d/Cxt39v_-ygHNlQ
+
 ## Команды
 
 Общая справка:
@@ -13,7 +17,15 @@
 python main.py --help
 ```
 
-SARS-CoV-2 workflow по умолчанию:
+## SARS-CoV-2:
+
+Пример входных данных на рассматриваемых автором последовательностях.
+
+Положите файлы из Яндекс-диска, относящиеся к интересующему вас исследованию в папку:
+
+`data/raw/covid_data`
+
+## SARS-CoV-2 workflow по умолчанию:
 
 ```powershell
 python main.py sars2
@@ -43,6 +55,18 @@ python scripts/genbank_to_excel.py sars2 --input data/raw/covid_data/sequence1.g
 ```
 
 ## Workflow для туберкулеза
+
+Пример входных данных на рассматриваемых автором последовательностях.
+
+Из Яндекс-диска нужно будет взять accessions_103.txt, после его положить файл сюда:
+
+`data/raw/tuberculosis_data/accessions_103.txt`
+
+После этого запускаем скачивание из NCBI:
+
+```powershell
+python scripts/download_ncbi_assemblies.py --accessions data/raw/tuberculosis_data/accessions_103.txt --output-dir data/raw/tuberculosis_data/ncbi_assemblies
+```
 
 Создание базовой таблицы метаданных:
 
