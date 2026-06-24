@@ -88,6 +88,25 @@ data/raw/tuberculosis_data/ncbi_assemblies/
 results/tuberculosis_data/tb_metadata.xlsx
 ```
 
+Tuberculosis input preparation for Snippy/TB-Profiler/FastTree stages:
+
+```powershell
+python main.py tuberculosis prepare-inputs
+```
+
+This command prepares the next analysis layer:
+
+```text
+results/tuberculosis_data/tb_input_manifest.tsv
+results/tuberculosis_data/tb_input_manifest.xlsx
+results/tuberculosis_data/tb_input_validation.md
+results/tuberculosis_data/inputs/fasta/
+data/raw/tuberculosis_data/reference/NC_000962.3.fasta
+data/raw/tuberculosis_data/reference/NC_000962.3.gb
+```
+
+`tb_input_manifest.tsv` is the central table for later Snippy/TB-Profiler/FastTree automation. It contains stable sample IDs, paths to FASTA/GenBank/assembly-report files, metadata, length/N/GC checks, and warnings.
+
 В TB Excel создаются листы:
 
 ```text
@@ -135,5 +154,8 @@ Nextclade dataset tag: 2026-04-21--09-39-50Z
 
 - SARS-CoV-2 workflow использует Nextclade и подходит только для COVID/SARS-CoV-2.
 - Tuberculosis workflow сейчас делает metadata/counts workbook по NCBI Assembly GenBank-файлам; Nextclade для TB не запускается.
+- TB analysis is intentionally assembly-based for the training project: it uses RefSeq assembly FASTA/GenBank files, not raw FASTQ reads.
+- Raw reads are not downloaded by default because they can require many gigabytes of storage and substantially longer processing time. This is a documented methodological limitation, not a bug.
+- The next TB bioinformatics stages should use `tb_input_manifest.tsv` as their input contract before adding Snippy, TB-Profiler, FastTree, and iTOL export.
 - Raw-данные и результаты игнорируются Git через `.gitignore`.
 - Если Excel-файл открыт в Excel/LibreOffice, Windows может заблокировать перезапись. Закрой файл и повтори команду.
