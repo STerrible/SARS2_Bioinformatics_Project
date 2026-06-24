@@ -1,20 +1,39 @@
+x-pipeline-base: &pipeline-base
+  build:
+    context: .
+    args:
+      NEXTCLADE_VERSION: "3.21.2"
+      NEXTCLADE_DATASET_NAME: "nextstrain/sars-cov-2/wuhan-hu-1/orfs"
+      NEXTCLADE_DATASET_TAG: "2026-04-21--09-39-50Z"
+  image: sars2-bioinformatics:full-3.21.2
+  environment:
+    NEXTCLADE_EXE: nextclade
+    NEXTCLADE_DATASET: /opt/nextclade/datasets/sars-cov-2
+    NEXTCLADE_DATASET_NAME: nextstrain/sars-cov-2/wuhan-hu-1/orfs
+    NEXTCLADE_DATASET_TAG: 2026-04-21--09-39-50Z
+    SARS2_PIPELINE_CONTAINER_IMAGE: sars2-bioinformatics:full-3.21.2
+  volumes:
+    - ./data:/app/data
+    - ./results:/app/results
+    - ./reports:/app/reports
+
 services:
   pipeline:
-    build:
-      context: .
-      args:
-        NEXTCLADE_VERSION: "3.21.2"
-        NEXTCLADE_DATASET_NAME: "nextstrain/sars-cov-2/wuhan-hu-1/orfs"
-        NEXTCLADE_DATASET_TAG: "2026-04-21--09-39-50Z"
-    image: sars2-bioinformatics:nextclade-3.21.2
-    environment:
-      NEXTCLADE_EXE: nextclade
-      NEXTCLADE_DATASET: /opt/nextclade/datasets/sars-cov-2
-      NEXTCLADE_DATASET_NAME: nextstrain/sars-cov-2/wuhan-hu-1/orfs
-      NEXTCLADE_DATASET_TAG: 2026-04-21--09-39-50Z
-      SARS2_PIPELINE_CONTAINER_IMAGE: sars2-bioinformatics:nextclade-3.21.2
-    volumes:
-      - ./data:/app/data:ro
-      - ./results:/app/results
-      - ./reports:/app/reports
+    <<: *pipeline-base
     command: ["bash", "-c", "/opt/venv/bin/python main.py sars2 && /opt/venv/bin/python scripts/generate_report.py"]
+
+  tb-prepare:
+    <<: *pipeline-base
+    command: ["bash", "-c", "/opt/venv/bin/python main.py tuberculosis metadata && /opt/venv/bin/python main.py tuberculosis prepare-inputs && /opt/venv/bin/python main.py tuberculosis snippy-plan"]
+
+  tb-snippy:
+    <<: *pipeline-base
+    command: ["bash", "-c", "/opt/venv/bin/python main.py tuberculosis prepare-inputs && /opt/venv/bin/python main.py tuberculosis snippy-plan --force && bash /app/results/tuberculosis_data/snippy/snippy_commands.sh"]
+
+  tb-post:
+    <<: *pipeline-base
+    command: ["bash", "-c", "/opt/venv/bin/python main.py tuberculosis snippy-summary && /opt/venv/bin/python main.py tuberculosis build-tree && /opt/venv/bin/python main.py tuberculosis mutation-summary && /opt/venv/bin/python main.py tuberculosis itol-export && /opt/venv/bin/python main.py tuberculosis report"]
+
+  tb-full:
+    <<: *pipeline-base
+    command: ["bash", "-c", "/opt/venv/bin/python main.py tuberculosis metadata && /opt/venv/bin/python main.py tuberculosis prepare-inputs && /opt/venv/bin/python main.py tuberculosis snippy-plan --force && bash /app/results/tuberculosis_data/snippy/snippy_commands.sh && /opt/venv/bin/python main.py tuberculosis snippy-summary && /opt/venv/bin/python main.py tuberculosis build-tree && /opt/venv/bin/python main.py tuberculosis mutation-summary && /opt/venv/bin/python main.py tuberculosis itol-export && /opt/venv/bin/python main.py tuberculosis report"]

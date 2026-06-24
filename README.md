@@ -5,41 +5,6 @@
 - COVID / SARS-CoV-2: входные файлы находятся в `data/raw/covid_data/`, результаты пишутся в `results/covid_data/`.
 - Tuberculosis / Mycobacterium tuberculosis: входные файлы находятся в `data/raw/tuberculosis_data/`, результаты пишутся в `results/tuberculosis_data/`.
 
-## Структура
-
-```text
-data/
-  raw/
-    covid_data/
-      sequence.fasta
-      sequence.gb
-      sequence1.fasta
-      sequence1.gb
-    tuberculosis_data/
-      accessions_103.txt
-      diploma_35_strains/
-      ncbi_assemblies/
-      reference/
-results/
-  covid_data/
-    genbank_table.xlsx
-    nextclade.tsv
-    aligned.fasta
-    phylogenetics/
-  tuberculosis_data/
-    inputs/
-    snippy/
-    phylogenetics/
-    variants/
-    itol/
-    tb_metadata.xlsx
-reports/
-  covid_data/
-    sars2_analysis_report.md
-  tuberculosis_data/
-    tb_analysis_report.md
-```
-
 ## Команды
 
 Общая справка:
@@ -71,7 +36,7 @@ results/covid_data/aligned.fasta
 reports/covid_data/sars2_analysis_report.md
 ```
 
-Запуск SARS-CoV-2 workflow для `sequence1`:
+Запуск SARS-CoV-2 workflow для `sequenceX`. В качестве примера используется форма записи sequence1:
 
 ```powershell
 python scripts/genbank_to_excel.py sars2 --input data/raw/covid_data/sequence1.gb --fasta data/raw/covid_data/sequence1.fasta --output results/covid_data/genbank_table_sequence1.xlsx --nextclade-output results/covid_data/nextclade_sequence1.tsv --nextclade-aligned-fasta results/covid_data/aligned_sequence1.fasta
@@ -124,7 +89,7 @@ data/raw/tuberculosis_data/reference/NC_000962.3.gb
 python main.py tuberculosis snippy-plan
 ```
 
-Эта команда не запускает Snippy. Она создает WSL-ready файлы команд на основе `tb_input_manifest.tsv`:
+Эта команда не запускает Snippy. Она создает файлы команд для Docker/Linux/WSL на основе `tb_input_manifest.tsv`:
 
 ```text
 results/tuberculosis_data/snippy/snippy_multi.tsv
@@ -132,7 +97,7 @@ results/tuberculosis_data/snippy/snippy_commands.sh
 results/tuberculosis_data/snippy/README_snippy.md
 ```
 
-После этого `snippy_commands.sh` запускается из WSL после активации conda-окружения `snippy`.
+В Docker этот этап запускается командой `docker compose run --rm tb-snippy`. В Linux/WSL можно запустить `snippy_commands.sh` напрямую после активации окружения, где доступен `snippy`.
 
 После завершения Snippy выполняются следующие этапы:
 
@@ -200,11 +165,45 @@ python scripts/extract_fasta_accessions.py --input data/raw/covid_data/sequence.
 
 ## Docker
 
-Docker Compose запускает SARS-CoV-2 workflow и COVID-отчет:
+Docker-образ содержит Python-зависимости проекта, Nextclade для SARS-CoV-2, а также Snippy 4.6.0 и FastTree 2.1.11 для TB workflow.
+
+Сборка образа:
 
 ```powershell
-docker compose up --build pipeline
+docker compose build pipeline
 ```
+
+Запуск SARS-CoV-2 workflow и COVID-отчета:
+
+```powershell
+docker compose up pipeline
+```
+
+Подготовка TB metadata, manifest, FASTA inputs и Snippy-плана:
+
+```powershell
+docker compose run --rm tb-prepare
+```
+
+Запуск Snippy для всех TB-сборок внутри Docker:
+
+```powershell
+docker compose run --rm tb-snippy
+```
+
+Постобработка уже готовых Snippy-результатов: Snippy summary, FastTree, mutation summary, iTOL и финальный TB-отчет:
+
+```powershell
+docker compose run --rm tb-post
+```
+
+Полный TB workflow одной командой, включая повторный Snippy-запуск для всех 103 сборок:
+
+```powershell
+docker compose run --rm tb-full
+```
+
+`tb-full` и `tb-snippy` могут выполняться долго, потому что Snippy анализирует 103 бактериальные сборки. Для повторной генерации отчетов без повторного Snippy-запуска используй `tb-post`.
 
 Контейнер использует:
 
@@ -212,6 +211,8 @@ docker compose up --build pipeline
 Nextclade CLI: 3.21.2
 Nextclade dataset: nextstrain/sars-cov-2/wuhan-hu-1/orfs
 Nextclade dataset tag: 2026-04-21--09-39-50Z
+Snippy: 4.6.0
+FastTree: 2.1.11
 ```
 
 ## Примечания

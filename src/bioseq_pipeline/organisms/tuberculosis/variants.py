@@ -1,3 +1,4 @@
+import warnings
 from datetime import datetime
 from pathlib import Path
 
@@ -93,6 +94,8 @@ COUNTRY_COLORS = [
     "#475569",
 ]
 
+SNIPPY_REQUIRED_OUTPUTS = ("snps.tab", "snps.vcf", "snps.aligned.fa", "snps.consensus.fa", "snps.log")
+
 
 def write_text_lf(path, text):
     path = Path(path)
@@ -110,6 +113,31 @@ def read_manifest(manifest_path=DEFAULT_INPUT_MANIFEST_TSV):
     if not manifest_path.exists():
         raise ValueError(f"TB input manifest was not found: {manifest_path}")
     return safe_read_tsv(manifest_path)
+
+
+def compact_values(values, limit=10):
+    values = list(values)
+    visible = ", ".join(values[:limit])
+    if len(values) > limit:
+        return f"{visible}, ... ({len(values)} total)"
+    return visible
+
+
+def count_data_lines(path, comment_prefix=None, has_header=False):
+    path = Path(path)
+    if not path.exists():
+        return 0
+
+    count = 0
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if comment_prefix and line.startswith(comment_prefix):
+                continue
+            if line.strip():
+                count += 1
+    if has_header and count > 0:
+        count -= 1
+    return count
 
 
 def normalize_gene(row):
@@ -181,6 +209,57 @@ def read_snippy_variants(runs_dir=DEFAULT_SNIPPY_RUNS_DIR):
     variants["drug_or_trait"] = variants["gene_key"].map(lambda gene: DRUG_GENE_TO_DRUG.get(gene, ""))
     variants["is_target_gene"] = variants["gene_key"].isin(TARGET_GENES)
     return variants
+
+
+def build_snippy_input_warnings(manifest_df, variants_df, runs_dir):
+    if "sample_id" not in manifest_df.columns:
+        return ["Input manifest has no sample_id column; Snippy sample coverage cannot be checked."]
+
+    runs_dir = Path(runs_dir)
+    expected_samples = sorted({str(sample).strip() for sample in manifest_df["sample_id"] if str(sample).strip()})
+    observed_samples = sorted({str(sample).strip() for sample in variants_df["sample_id"] if str(sample).strip()})
+    expected = set(expected_samples)
+    observed = set(observed_samples)
+    messages = []
+
+    missing_variant_rows = sorted(expected - observed)
+    if missing_variant_rows:
+        messages.append(
+            "No Snippy variant rows were found for "
+            f"{len(missing_variant_rows)} manifest sample(s): {compact_values(missing_variant_rows)}. "
+            "Check whether the Snippy run is incomplete or whether the sample truly has zero called variants."
+        )
+
+    extra_variant_rows = sorted(observed - expected)
+    if extra_variant_rows:
+        messages.append(
+            "Snippy variant rows were found for "
+            f"{len(extra_variant_rows)} sample(s) absent from the manifest: {compact_values(extra_variant_rows)}."
+        )
+
+    incomplete_runs = []
+    for sample_id in expected_samples:
+        run_dir = runs_dir / sample_id
+        missing_outputs = [
+            filename
+            for filename in SNIPPY_REQUIRED_OUTPUTS
+            if not (run_dir / filename).exists() or (run_dir / filename).stat().st_size == 0
+        ]
+        if missing_outputs:
+            incomplete_runs.append(f"{sample_id} ({', '.join(missing_outputs)})")
+
+    if incomplete_runs:
+        messages.append(
+            "Incomplete Snippy output folders were found for "
+            f"{len(incomplete_runs)} manifest sample(s): {compact_values(incomplete_runs)}."
+        )
+
+    return messages
+
+
+def emit_warnings(messages):
+    for message in messages:
+        warnings.warn(message, RuntimeWarning, stacklevel=2)
 
 
 def manifest_metadata(manifest_df):
@@ -291,7 +370,8 @@ def build_target_gene_summary(variants_df, sample_count):
     return summary.sort_values(["target_group", "samples_with_variant", "variant_rows"], ascending=[True, False, False])
 
 
-def write_mutation_report(report_path, sample_summary, gene_summary, target_summary, variants_df):
+def write_mutation_report(report_path, sample_summary, gene_summary, target_summary, variants_df, warning_messages=None):
+    warning_messages = warning_messages or []
     top_genes = gene_summary.head(15)
     target_lines = []
     for _, row in target_summary.iterrows():
@@ -312,17 +392,26 @@ def write_mutation_report(report_path, sample_summary, gene_summary, target_summ
         f"- Genes/loci with variants: {gene_summary['gene_key'].nunique()}",
         f"- Target genes tracked: {len(TARGET_GENES)}",
         "",
-        "## Target Genes",
-        "",
-        "| gene | group | samples with variant | sample frequency, % |",
-        "| --- | --- | ---: | ---: |",
-        *target_lines,
-        "",
-        "## Top Mutated Genes/Loci",
-        "",
-        "| gene/locus | group | samples with variant | variant rows |",
-        "| --- | --- | ---: | ---: |",
     ]
+    if warning_messages:
+        lines.extend(["## Input Warnings", ""])
+        lines.extend(f"- {message}" for message in warning_messages)
+        lines.append("")
+
+    lines.extend(
+        [
+            "## Target Genes",
+            "",
+            "| gene | group | samples with variant | sample frequency, % |",
+            "| --- | --- | ---: | ---: |",
+            *target_lines,
+            "",
+            "## Top Mutated Genes/Loci",
+            "",
+            "| gene/locus | group | samples with variant | variant rows |",
+            "| --- | --- | ---: | ---: |",
+        ]
+    )
     for _, row in top_genes.iterrows():
         lines.append(f"| {row['gene_key']} | {row['gene_group']} | {row['samples_with_variant']} | {row['variant_rows']} |")
 
@@ -349,6 +438,8 @@ def write_mutation_summary(
 ):
     manifest_df = read_manifest(manifest_path)
     variants_df = read_snippy_variants(runs_dir)
+    warning_messages = build_snippy_input_warnings(manifest_df, variants_df, runs_dir)
+    emit_warnings(warning_messages)
     sample_count = variants_df["sample_id"].nunique()
     gene_summary = build_gene_summary(variants_df, sample_count)
     sample_summary = build_sample_summary(variants_df, manifest_df)
@@ -375,7 +466,7 @@ def write_mutation_summary(
             (TB_VARIANTS_SHEET, variants_df),
         ],
     )
-    write_mutation_report(report_path, sample_summary, gene_summary, target_summary, variants_df)
+    write_mutation_report(report_path, sample_summary, gene_summary, target_summary, variants_df, warning_messages)
 
     return {
         "samples": sample_count,
@@ -388,6 +479,7 @@ def write_mutation_summary(
         "target_matrix_tsv": Path(target_matrix_tsv),
         "output_xlsx": Path(output_xlsx),
         "report": Path(report_path),
+        "warnings": warning_messages,
     }
 
 
@@ -430,7 +522,7 @@ def write_itol_simplebar(output_path, sample_summary):
 
 
 def write_itol_target_heatmap(output_path, target_matrix):
-    heatmap_genes = TARGET_GENE_GROUPS["adaptive_pe_ppe"] + TARGET_GENE_GROUPS["drug_resistance_candidate"][:7]
+    heatmap_genes = TARGET_GENES
     colors = ["#dc2626" if gene in TARGET_GENE_GROUPS["drug_resistance_candidate"] else "#16a34a" for gene in heatmap_genes]
     lines = [
         "DATASET_HEATMAP",
@@ -490,29 +582,27 @@ def export_itol_annotations(
     }
 
 
-def metric_lookup_from_markdown_table(path):
-    path = Path(path)
-    metrics = {}
-    metric_aliases = {
-        "завершенных Snippy-запусков": "complete_runs",
-        "строк вариантов в `core.tab`": "core_tab_variant_rows",
-    }
-    if not path.exists():
-        return metrics
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        if not line.startswith("|") or "---" in line or "metric" in line or "показатель" in line:
-            continue
-        parts = [part.strip() for part in line.strip("|").split("|")]
-        if len(parts) >= 2:
-            metrics[parts[0]] = parts[1]
-            if parts[0] in metric_aliases:
-                metrics[metric_aliases[parts[0]]] = parts[1]
-    return metrics
+def count_complete_snippy_runs(runs_dir=DEFAULT_SNIPPY_RUNS_DIR):
+    runs_dir = Path(runs_dir)
+    if not runs_dir.exists():
+        return 0
+
+    complete = 0
+    for run_dir in sorted(path for path in runs_dir.iterdir() if path.is_dir()):
+        missing = [
+            filename
+            for filename in SNIPPY_REQUIRED_OUTPUTS
+            if not (run_dir / filename).exists() or (run_dir / filename).stat().st_size == 0
+        ]
+        if not missing:
+            complete += 1
+    return complete
 
 
 def write_final_report(
     report_path=DEFAULT_TB_REPORT,
     manifest_path=DEFAULT_INPUT_MANIFEST_TSV,
+    runs_dir=DEFAULT_SNIPPY_RUNS_DIR,
     snippy_summary_report=DEFAULT_SNIPPY_SUMMARY_REPORT,
     mutation_report=DEFAULT_MUTATION_REPORT,
     sample_summary_tsv=DEFAULT_SAMPLE_SUMMARY_TSV,
@@ -528,7 +618,8 @@ def write_final_report(
     sample_summary = safe_read_tsv(sample_summary_tsv)
     gene_summary = safe_read_tsv(gene_summary_tsv)
     target_matrix = safe_read_tsv(target_matrix_tsv)
-    snippy_metrics = metric_lookup_from_markdown_table(snippy_summary_report)
+    complete_runs = count_complete_snippy_runs(runs_dir)
+    core_tab_variant_rows = count_data_lines(core_tab, has_header=True)
 
     countries = manifest["country"].replace("", "Unknown").value_counts().head(12) if "country" in manifest.columns else pd.Series(dtype=int)
     top_genes = gene_summary.head(12)
@@ -557,8 +648,8 @@ def write_final_report(
         "",
         "## Snippy и FastTree",
         "",
-        f"- Завершенные Snippy-запуски: {snippy_metrics.get('complete_runs', 'нет данных')}",
-        f"- Строк вариантов в core SNP matrix: {snippy_metrics.get('core_tab_variant_rows', 'нет данных')}",
+        f"- Завершенные Snippy-запуски: {complete_runs}",
+        f"- Строк вариантов в core SNP matrix: {core_tab_variant_rows}",
         f"- Newick-дерево FastTree: `{tree_path}`",
         f"- Лог FastTree: `{fasttree_log}`",
         "",

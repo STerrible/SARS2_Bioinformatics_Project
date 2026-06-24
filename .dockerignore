@@ -1,5 +1,6 @@
 .git
 .idea
+.venv/
 __pycache__/
 **/__pycache__/
 *.py[cod]
@@ -7,6 +8,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+data/
 manual_notes/
+reports/
 results/
-reports/diploma_comparison.md
