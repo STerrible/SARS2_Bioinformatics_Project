@@ -128,6 +128,9 @@ After Snippy has finished, validate the outputs and build the FastTree Newick tr
 ```powershell
 python main.py tuberculosis snippy-summary
 python main.py tuberculosis build-tree
+python main.py tuberculosis mutation-summary
+python main.py tuberculosis itol-export
+python main.py tuberculosis report
 ```
 
 These commands create:
@@ -138,9 +141,17 @@ results/tuberculosis_data/snippy/snippy_summary.md
 results/tuberculosis_data/snippy/core.no_reference.aln
 results/tuberculosis_data/phylogenetics/tb_fasttree.nwk
 results/tuberculosis_data/phylogenetics/fasttree.log
+results/tuberculosis_data/variants/tb_mutation_summary.xlsx
+results/tuberculosis_data/variants/tb_mutation_summary.md
+results/tuberculosis_data/itol/itol_country_strip.txt
+results/tuberculosis_data/itol/itol_variant_count_bars.txt
+results/tuberculosis_data/itol/itol_target_gene_heatmap.txt
+reports/tuberculosis_data/tb_analysis_report.md
 ```
 
 `build-tree` excludes Snippy's `Reference` sequence by default, so `tb_fasttree.nwk` represents the 103 analyzed TB assemblies. Use `--include-reference` if a reference-containing tree is needed.
+
+The TB workflow is intentionally completed without TB-Profiler because raw FASTQ reads are not part of this training dataset. Drug-resistance genes are summarized as candidate mutation loci from Snippy annotations, not as formal TB-Profiler resistance calls.
 
 В TB Excel создаются листы:
 
@@ -165,6 +176,9 @@ python main.py tuberculosis prepare-inputs
 python main.py tuberculosis snippy-plan
 python main.py tuberculosis snippy-summary
 python main.py tuberculosis build-tree
+python main.py tuberculosis mutation-summary
+python main.py tuberculosis itol-export
+python main.py tuberculosis report
 ```
 
 Извлечение accession-номеров из COVID FASTA:
@@ -195,6 +209,6 @@ Nextclade dataset tag: 2026-04-21--09-39-50Z
 - Tuberculosis workflow сейчас делает metadata/counts workbook по NCBI Assembly GenBank-файлам; Nextclade для TB не запускается.
 - TB analysis is intentionally assembly-based for the training project: it uses RefSeq assembly FASTA/GenBank files, not raw FASTQ reads.
 - Raw reads are not downloaded by default because they can require many gigabytes of storage and substantially longer processing time. This is a documented methodological limitation, not a bug.
-- The next TB bioinformatics stages should use `tb_input_manifest.tsv`, Snippy `core.aln`, and Snippy `core.tab` as their input contracts before adding TB-Profiler and iTOL export.
+- The TB workflow now uses `tb_input_manifest.tsv`, Snippy `core.aln`/`core.tab`, FastTree Newick output, and assembly-based mutation summaries as its reproducible input contracts.
 - Raw-данные и результаты игнорируются Git через `.gitignore`.
 - Если Excel-файл открыт в Excel/LibreOffice, Windows может заблокировать перезапись. Закрой файл и повтори команду.

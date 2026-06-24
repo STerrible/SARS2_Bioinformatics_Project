@@ -31,9 +31,17 @@ from bioseq_pipeline.organisms.tuberculosis.config import (
     DEFAULT_FASTTREE_LOG,
     DEFAULT_FASTTREE_README,
     DEFAULT_FASTTREE_TREE,
+    DEFAULT_GENE_SUMMARY_TSV,
+    DEFAULT_ITOL_COUNTRY_STRIP,
+    DEFAULT_ITOL_README,
+    DEFAULT_ITOL_TARGET_HEATMAP,
+    DEFAULT_ITOL_VARIANT_BARS,
+    DEFAULT_MUTATION_REPORT,
+    DEFAULT_MUTATION_SUMMARY_XLSX,
     DEFAULT_PHYLOGENETICS_DIR,
     DEFAULT_REFERENCE_ACCESSION,
     DEFAULT_REFERENCE_DIR,
+    DEFAULT_SAMPLE_SUMMARY_TSV,
     DEFAULT_SNIPPY_COMMANDS,
     DEFAULT_SNIPPY_CORE_ALN,
     DEFAULT_SNIPPY_CORE_NO_REFERENCE_ALN,
@@ -47,6 +55,9 @@ from bioseq_pipeline.organisms.tuberculosis.config import (
     DEFAULT_SNIPPY_RUNS_DIR,
     DEFAULT_SNIPPY_SUMMARY_REPORT,
     DEFAULT_SNIPPY_SUMMARY_XLSX,
+    DEFAULT_TARGET_MATRIX_TSV,
+    DEFAULT_TB_REPORT,
+    DEFAULT_VARIANTS_TSV,
     TB_INPUT_MANIFEST_SHEET,
     TB_INPUT_VALIDATION_SHEET,
     TB_ASSEMBLY_METADATA_SHEET,
@@ -55,6 +66,11 @@ from bioseq_pipeline.organisms.tuberculosis.config import (
     TB_SNIPPY_CORE_STATS_SHEET,
     TB_SNIPPY_RUN_STATUS_SHEET,
     TB_SNIPPY_SUMMARY_SHEET,
+)
+from bioseq_pipeline.organisms.tuberculosis.variants import (
+    export_itol_annotations,
+    write_final_report,
+    write_mutation_summary,
 )
 
 
@@ -1414,6 +1430,183 @@ def add_tuberculosis_arguments(parser):
         help="Keep the Snippy Reference sequence in the FastTree alignment.",
     )
 
+    mutation_parser = subparsers.add_parser(
+        "mutation-summary",
+        help="Build assembly-based mutation summaries from per-sample Snippy snps.tab files.",
+    )
+    mutation_parser.add_argument(
+        "--runs-dir",
+        type=Path,
+        default=DEFAULT_SNIPPY_RUNS_DIR,
+        help="Directory containing per-sample Snippy run folders.",
+    )
+    mutation_parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_INPUT_MANIFEST_TSV,
+        help="TB input manifest with metadata.",
+    )
+    mutation_parser.add_argument(
+        "--variants-tsv",
+        type=Path,
+        default=DEFAULT_VARIANTS_TSV,
+        help="Output combined Snippy variants TSV.",
+    )
+    mutation_parser.add_argument(
+        "--gene-summary",
+        type=Path,
+        default=DEFAULT_GENE_SUMMARY_TSV,
+        help="Output gene mutation summary TSV.",
+    )
+    mutation_parser.add_argument(
+        "--sample-summary",
+        type=Path,
+        default=DEFAULT_SAMPLE_SUMMARY_TSV,
+        help="Output sample mutation summary TSV.",
+    )
+    mutation_parser.add_argument(
+        "--target-matrix",
+        type=Path,
+        default=DEFAULT_TARGET_MATRIX_TSV,
+        help="Output target gene count matrix TSV.",
+    )
+    mutation_parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_MUTATION_SUMMARY_XLSX,
+        help="Output Excel workbook.",
+    )
+    mutation_parser.add_argument(
+        "--report",
+        type=Path,
+        default=DEFAULT_MUTATION_REPORT,
+        help="Output Markdown report.",
+    )
+
+    itol_parser = subparsers.add_parser(
+        "itol-export",
+        help="Create iTOL annotation datasets from mutation summaries and metadata.",
+    )
+    itol_parser.add_argument(
+        "--sample-summary",
+        type=Path,
+        default=DEFAULT_SAMPLE_SUMMARY_TSV,
+        help="Sample mutation summary TSV from mutation-summary.",
+    )
+    itol_parser.add_argument(
+        "--target-matrix",
+        type=Path,
+        default=DEFAULT_TARGET_MATRIX_TSV,
+        help="Target gene matrix TSV from mutation-summary.",
+    )
+    itol_parser.add_argument(
+        "--tree",
+        type=Path,
+        default=DEFAULT_FASTTREE_TREE,
+        help="Newick tree path for README reference.",
+    )
+    itol_parser.add_argument(
+        "--country-strip",
+        type=Path,
+        default=DEFAULT_ITOL_COUNTRY_STRIP,
+        help="Output iTOL country color-strip file.",
+    )
+    itol_parser.add_argument(
+        "--variant-bars",
+        type=Path,
+        default=DEFAULT_ITOL_VARIANT_BARS,
+        help="Output iTOL variant-count bar file.",
+    )
+    itol_parser.add_argument(
+        "--target-heatmap",
+        type=Path,
+        default=DEFAULT_ITOL_TARGET_HEATMAP,
+        help="Output iTOL target-gene heatmap file.",
+    )
+    itol_parser.add_argument(
+        "--readme",
+        type=Path,
+        default=DEFAULT_ITOL_README,
+        help="Output iTOL README path.",
+    )
+
+    report_parser = subparsers.add_parser(
+        "report",
+        help="Write final assembly-based tuberculosis analysis report.",
+    )
+    report_parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_TB_REPORT,
+        help="Output Markdown report path.",
+    )
+    report_parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_INPUT_MANIFEST_TSV,
+        help="TB input manifest.",
+    )
+    report_parser.add_argument(
+        "--snippy-summary-report",
+        type=Path,
+        default=DEFAULT_SNIPPY_SUMMARY_REPORT,
+        help="Snippy summary Markdown report.",
+    )
+    report_parser.add_argument(
+        "--mutation-report",
+        type=Path,
+        default=DEFAULT_MUTATION_REPORT,
+        help="Mutation summary Markdown report.",
+    )
+    report_parser.add_argument(
+        "--sample-summary",
+        type=Path,
+        default=DEFAULT_SAMPLE_SUMMARY_TSV,
+        help="Sample mutation summary TSV.",
+    )
+    report_parser.add_argument(
+        "--gene-summary",
+        type=Path,
+        default=DEFAULT_GENE_SUMMARY_TSV,
+        help="Gene mutation summary TSV.",
+    )
+    report_parser.add_argument(
+        "--target-matrix",
+        type=Path,
+        default=DEFAULT_TARGET_MATRIX_TSV,
+        help="Target gene matrix TSV.",
+    )
+    report_parser.add_argument(
+        "--tree",
+        type=Path,
+        default=DEFAULT_FASTTREE_TREE,
+        help="FastTree Newick tree path.",
+    )
+    report_parser.add_argument(
+        "--fasttree-log",
+        type=Path,
+        default=DEFAULT_FASTTREE_LOG,
+        help="FastTree log path.",
+    )
+    report_parser.add_argument(
+        "--core-aln",
+        type=Path,
+        default=DEFAULT_SNIPPY_CORE_ALN,
+        help="Snippy core alignment path.",
+    )
+    report_parser.add_argument(
+        "--core-tab",
+        type=Path,
+        default=DEFAULT_SNIPPY_CORE_TAB,
+        help="Snippy core SNP matrix path.",
+    )
+    report_parser.add_argument(
+        "--core-txt",
+        type=Path,
+        default=DEFAULT_SNIPPY_CORE_TXT,
+        help="Snippy core summary path.",
+    )
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Build tuberculosis metadata/counts workbook.")
@@ -1485,6 +1678,66 @@ def run_from_args(args):
         print(f"FastTree log: {result['log']}")
         print(f"Phylogenetics README: {result['readme']}")
         print(f"Tree size: {result['tree_size']} bytes")
+        return
+
+    if tb_command == "mutation-summary":
+        result = write_mutation_summary(
+            runs_dir=args.runs_dir,
+            manifest_path=args.manifest,
+            variants_tsv=args.variants_tsv,
+            gene_summary_tsv=args.gene_summary,
+            sample_summary_tsv=args.sample_summary,
+            target_matrix_tsv=args.target_matrix,
+            output_xlsx=args.output,
+            report_path=args.report,
+        )
+        print(f"Mutation summary workbook: {result['output_xlsx']}")
+        print(f"Mutation summary report: {result['report']}")
+        print(f"Combined variants TSV: {result['variants_tsv']}")
+        print(f"Gene summary TSV: {result['gene_summary_tsv']}")
+        print(f"Sample summary TSV: {result['sample_summary_tsv']}")
+        print(f"Target matrix TSV: {result['target_matrix_tsv']}")
+        print(f"Samples: {result['samples']}")
+        print(f"Variant rows: {result['variant_rows']}")
+        print(f"Genes/loci with variants: {result['genes']}")
+        print(f"Target genes with variants: {result['target_genes_with_variants']}")
+        return
+
+    if tb_command == "itol-export":
+        result = export_itol_annotations(
+            sample_summary_tsv=args.sample_summary,
+            target_matrix_tsv=args.target_matrix,
+            tree_path=args.tree,
+            country_strip=args.country_strip,
+            variant_bars=args.variant_bars,
+            target_heatmap=args.target_heatmap,
+            readme_path=args.readme,
+        )
+        print(f"iTOL country strip: {result['country_strip']}")
+        print(f"iTOL variant bars: {result['variant_bars']}")
+        print(f"iTOL target gene heatmap: {result['target_heatmap']}")
+        print(f"iTOL README: {result['readme']}")
+        return
+
+    if tb_command == "report":
+        result = write_final_report(
+            report_path=args.output,
+            manifest_path=args.manifest,
+            snippy_summary_report=args.snippy_summary_report,
+            mutation_report=args.mutation_report,
+            sample_summary_tsv=args.sample_summary,
+            gene_summary_tsv=args.gene_summary,
+            target_matrix_tsv=args.target_matrix,
+            tree_path=args.tree,
+            fasttree_log=args.fasttree_log,
+            core_aln=args.core_aln,
+            core_tab=args.core_tab,
+            core_txt=args.core_txt,
+        )
+        print(f"TB analysis report: {result['report']}")
+        print(f"Samples: {result['samples']}")
+        print(f"Genes/loci with variants: {result['genes']}")
+        print(f"Target genes tracked: {result['target_genes']}")
         return
 
     if tb_command == "prepare-inputs":
