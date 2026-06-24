@@ -8,7 +8,7 @@ import pandas as pd
 
 PROJECT_DIR = Path(__file__).resolve().parents[4]
 DEFAULT_EXCEL = PROJECT_DIR / "results" / "covid_data" / "genbank_table.xlsx"
-DEFAULT_OUTPUT = PROJECT_DIR / "reports" / "sars2_analysis_report.md"
+DEFAULT_OUTPUT = PROJECT_DIR / "reports" / "covid_data" / "sars2_analysis_report.md"
 
 COLUMN_LABELS = {
     "metric": "Показатель",

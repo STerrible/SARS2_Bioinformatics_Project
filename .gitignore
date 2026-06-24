@@ -38,6 +38,10 @@ results/phylogenetics/popart_validation_report.md
 data/raw/covid_data/
 data/raw/tuberculosis_data/
 
+# Local organism-specific reports kept out of Git.
+reports/covid_data/
+reports/tuberculosis_data/
+
 # Legacy raw-data paths kept ignored if old files are regenerated.
 data/raw/accessions*.txt
 data/raw/sequence.fasta
